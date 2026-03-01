@@ -10,7 +10,7 @@ import subprocess
 import os
 from PIL import Image, ImageTk
 
-__version__ = "1.0.0"
+__version__ = "1.0.4"
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
