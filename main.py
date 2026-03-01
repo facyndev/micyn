@@ -779,7 +779,7 @@ class AudioDelayApp(ctk.CTk):
         mf1.pack(side="left", expand=True, fill="both", padx=(0, 5))
         self.monitor_var = ctk.BooleanVar(value=False)
         self.monitor_chk = ctk.CTkSwitch(
-            mf1, text="Sin delay", variable=self.monitor_var,
+            mf1, text="Escuchar sin delay", variable=self.monitor_var,
             font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"),
             text_color="#FFFFFF", progress_color="#4570F7",
             button_color="#FFFFFF", button_hover_color="#3F3F46",
@@ -791,7 +791,7 @@ class AudioDelayApp(ctk.CTk):
         mf2.pack(side="right", expand=True, fill="both", padx=(5, 0))
         self.monitor_delay_var = ctk.BooleanVar(value=False)
         self.monitor_delay_chk = ctk.CTkSwitch(
-            mf2, text="Con delay", variable=self.monitor_delay_var,
+            mf2, text="Escuchar con delay", variable=self.monitor_delay_var,
             font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"),
             text_color="#FFFFFF", progress_color="#4570F7",
             button_color="#FFFFFF", button_hover_color="#3F3F46",
