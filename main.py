@@ -471,6 +471,58 @@ class AudioDelayApp(ctk.CTk):
                         self.bar_canvas.coords(self.bars[i], x_coords[0], y1, x_coords[2], y2)
         self.after(16, self._animate_bars)
 
+    def _show_manual(self, event=None):
+        manual_win = ctk.CTkToplevel(self)
+        manual_win.title("Manual de uso")
+        manual_win.geometry("500x350")
+        manual_win.configure(fg_color="#09090B")
+        manual_win.attributes("-topmost", True)
+        
+        # Centrar con respecto a la ventana principal
+        manual_win.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (500 // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (350 // 2)
+        manual_win.geometry(f"+{x}+{y}")
+        
+        title_font = ctk.CTkFont(family="Google Sans", size=18, weight="bold")
+        text_font = ctk.CTkFont(family="Google Sans", size=14)
+        
+        # Título
+        ctk.CTkLabel(
+            manual_win, 
+            text="¿Cómo usar Micyn en otra aplicación?", 
+            font=title_font, 
+            text_color="#FFFFFF"
+        ).pack(pady=(20, 15), padx=20)
+        
+        # Contenido
+        info_text = (
+            "1. En Micyn:\n"
+            "   • Selecciona tu micrófono de uso normal en 'ENTRADA'.\n"
+            "   • Elige el tiempo de retraso deseado en 'TIEMPO'.\n"
+            "   • Haz clic en '▶ Iniciar retraso de audio'.\n\n"
+            "2. En la otra aplicación (Ej: OBS, Discord, Meet):\n"
+            "   • Entra a la configuración de Audio y Video.\n"
+            "   • Ve a Dispositivo de Entrada / Micrófono.\n"
+            "   • Selecciona la nueva entrada llamada \"Micyn\".\n\n"
+            "¡Listo! La señal de tu micrófono ya estará circulando con delay hacia "
+            "tu aplicación favorita."
+        )
+        
+        text_box = ctk.CTkTextbox(
+            manual_win, 
+            font=text_font, 
+            fg_color="#18181A", 
+            text_color="#A0AEC0", 
+            wrap="word", 
+            corner_radius=10,
+            border_width=1,
+            border_color="#27272A"
+        )
+        text_box.pack(expand=True, fill="both", padx=20, pady=(0, 20))
+        text_box.insert("1.0", info_text)
+        text_box.configure(state="disabled")
+
     def _populate_devices(self):
         try:
             devices = sd.query_devices()
@@ -543,6 +595,22 @@ class AudioDelayApp(ctk.CTk):
             import webbrowser
             webbrowser.open("https://www.facyn.xyz")
         self.desc_lbl2.bind("<Button-1>", _open_link)
+
+        help_frame = ctk.CTkFrame(self, fg_color="transparent")
+        help_frame.pack(pady=(0, 20))
+        self.help_lbl = ctk.CTkLabel(
+            help_frame, text="❓ Manual de uso", font=sub_font, text_color="#A0AEC0", cursor="hand2"
+        )
+        self.help_lbl.pack()
+        
+        def _on_enter(e):
+            self.help_lbl.configure(text_color="#FFFFFF")
+        def _on_leave(e):
+            self.help_lbl.configure(text_color="#A0AEC0")
+            
+        self.help_lbl.bind("<Enter>", _on_enter)
+        self.help_lbl.bind("<Leave>", _on_leave)
+        self.help_lbl.bind("<Button-1>", self._show_manual)
 
         # Entrada
         self.in_lbl = ctk.CTkLabel(self, text="MICRÓFONO (ENTRADA)", font=label_font, text_color="#A0AEC0")
@@ -633,14 +701,17 @@ class AudioDelayApp(ctk.CTk):
 
         # Divisor y estado
         ctk.CTkFrame(self, height=1, fg_color="#27272A").pack(pady=(10, 20), fill="x", padx=40)
-        self.status_frame = ctk.CTkFrame(self, fg_color="#09090B", corner_radius=15, height=30)
+        
+        status_font = ctk.CTkFont(family="Google Sans", size=20, weight="bold")
+        
+        self.status_frame = ctk.CTkFrame(self, fg_color="#09090B", corner_radius=15, height=50)
         self.status_frame.pack(pady=(0, 10))
         self.status_dot = ctk.CTkLabel(self.status_frame, text="●", text_color="#A0AEC0",
-                                       font=ctk.CTkFont(size=14))
-        self.status_dot.pack(side="left", padx=(15, 5))
+                                       font=ctk.CTkFont(size=22))
+        self.status_dot.pack(side="left", padx=(20, 10))
         self.status_lbl = ctk.CTkLabel(self.status_frame, text="ESTADO: DETENIDO",
-                                       font=label_font, text_color="#A0AEC0")
-        self.status_lbl.pack(side="left", padx=(0, 15))
+                                       font=status_font, text_color="#A0AEC0")
+        self.status_lbl.pack(side="left", padx=(0, 25))
 
 
 if __name__ == "__main__":
