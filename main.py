@@ -10,6 +10,8 @@ import subprocess
 import os
 from PIL import Image, ImageTk
 
+__version__ = "1.0.0"
+
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
@@ -31,6 +33,11 @@ class AudioDelayApp(ctk.CTk):
         self.current_amplitudes = [0] * self.num_bars
         self.target_amplitudes  = [0] * self.num_bars
         self.bar_canvas = None
+        
+        self.bars_out = []
+        self.current_amplitudes_out = [0.0] * self.num_bars
+        self.target_amplitudes_out  = [0.0] * self.num_bars
+        self.bar_canvas_out = None
 
         # Audio config
         self.samplerate  = 44100
@@ -110,11 +117,11 @@ class AudioDelayApp(ctk.CTk):
                     ["pactl", "load-module", "module-virtual-source",
                      "source_name=MicynMic",
                      "master=MicynOutput.monitor",
-                     "source_properties=device.description='Micyn - Retraso de audio'"],
+                     "source_properties=device.description='Micyn'"],
                     check=True, stdout=subprocess.PIPE, text=True)
                 self.linux_module_source_id = res.stdout.strip()
 
-                print("Cables virtuales OK. Selecciona 'Micyn - Retraso de audio' como mic en cualquier app.")
+                print("Cables virtuales OK. Selecciona 'Micyn' como mic en cualquier app.")
 
             except FileNotFoundError:
                 print("PulseAudio/PipeWire no disponible.")
@@ -128,7 +135,7 @@ class AudioDelayApp(ctk.CTk):
                                      stdout=subprocess.PIPE, text=True)
                 for line in res.stdout.splitlines():
                     if any(k in line for k in ['DelaySinkInternal', 'MicynOutput', 'MicynMic',
-                                               'Micyn - Retraso', 'Microfono_OBS_Retraso']):
+                                               'Micyn', 'Microfono_OBS_Retraso']):
                         mod_id = line.split()[0]
                         subprocess.run(['pactl', 'unload-module', mod_id])
                         print(f"Modulo {mod_id} eliminado.")
@@ -196,6 +203,26 @@ class AudioDelayApp(ctk.CTk):
             self.read_ptr = (self.read_ptr + frames) % self.total_buffer_size
         else:
             outdata[:] = np.zeros((frames, self.channels), dtype=np.float32)
+
+        # Vumetro de salida (después de aplicar el delay / silencio)
+        rms = np.sqrt(np.mean(outdata ** 2))
+        db = 20 * np.log10(rms + 1e-6)
+        norm_amp = max(0.0, min(1.0, (db + 40) / 40))
+        
+        if norm_amp < 0.01:
+            # Modo Loading / En Espera
+            self.is_waiting_audio = True
+            for i in range(self.num_bars):
+                self.target_amplitudes_out[i] = 0.0
+        else:
+            # Modo Activo
+            self.is_waiting_audio = False
+            for i in range(self.num_bars):
+                dist = abs(i - 3)
+                weight = max(0.2, 1.0 - dist * 0.25)
+                ripple = np.sin((time.time() * 5) + i) * 0.1
+                self.target_amplitudes_out[i] = float(
+                    max(0.0, min(1.0, norm_amp * weight + ripple * norm_amp)))
 
     # ─────────────────────────────────────────────
     #   AUDIO LOOP
@@ -470,15 +497,17 @@ class AudioDelayApp(ctk.CTk):
 
         for i in range(self.num_bars):
             self.target_amplitudes[i] = 0.0
+            self.target_amplitudes_out[i] = 0.0
 
         if self.audio_thread and self.audio_thread.is_alive():
             self.audio_thread.join(timeout=1.0)
 
         self.start_btn.configure(state="normal", fg_color="#4570F7", text="▶  Iniciar retraso de audio")
-        self.input_combobox.configure(state="readonly")
         self.time_combobox.configure(state="readonly")
-        if self.time_combobox.get() == "Personalizado (Segundos)":
-            self.custom_time_entry.configure(state="normal")
+        
+        # Validar la habilitación del Custom Entry en función del valor actual
+        self._on_time_change(self.time_combobox.get())
+
         self.monitor_chk.configure(state="normal")
         self.monitor_delay_chk.configure(state="normal")
         self.stop_btn.configure(state="disabled", text_color="#7A8084", fg_color="#27272A")
@@ -517,24 +546,58 @@ class AudioDelayApp(ctk.CTk):
     def _animate_bars(self):
         if self.is_running:
             for i in range(self.num_bars):
+                # Micrófono
                 current    = self.current_amplitudes[i]
                 target     = self.target_amplitudes[i]
                 lerp_speed = 0.4 if target > current else 0.15
                 self.current_amplitudes[i] = current + (target - current) * lerp_speed
-                height = float(4 + self.current_amplitudes[i] * 46)
-                y1, y2 = float(30 - height / 2), float(30 + height / 2)
-                coords = self.bar_canvas.coords(self.bars[i])
-                if coords:
-                    self.bar_canvas.coords(self.bars[i], coords[0], y1, coords[2], y2)
+                height = max(6, int(4 + self.current_amplitudes[i] * 46))
+                y_pos = 30 - height // 2
+                self.bars[i].configure(height=height)
+                self.bars[i].place(y=y_pos)
+                    
+                # Salida Micyn
+                c_out = self.current_amplitudes_out[i]
+                t_out = self.target_amplitudes_out[i]
+                l_speed_out = 0.4 if t_out > c_out else 0.15
+                self.current_amplitudes_out[i] = c_out + (t_out - c_out) * l_speed_out
+                h_out = max(6, int(4 + self.current_amplitudes_out[i] * 46))
+                y_pos_o = 30 - h_out // 2
+                self.bars_out[i].configure(height=h_out)
+                self.bars_out[i].place(y=y_pos_o)
+                
+            # Gestionar indicador de Espera
+            if getattr(self, "is_waiting_audio", False):
+                self.vumeter_out_container.place_forget()
+                # Animación parpadeo leve (opcional)
+                if int(time.time() * 3) % 2 == 0:
+                    self.waiting_label_out.place(relx=0.5, rely=0.5, anchor="center")
+                else:
+                    self.waiting_label_out.place_forget()
+            else:
+                self.waiting_label_out.place_forget()
+                self.vumeter_out_container.place(relx=0.5, rely=0.5, anchor="center")
+                
         else:
+            self.waiting_label_out.place_forget()
+            self.vumeter_out_container.place(relx=0.5, rely=0.5, anchor="center")
+            
             for i in range(self.num_bars):
+                # Descenso suave micrófono
                 if self.current_amplitudes[i] > 0.01:
                     self.current_amplitudes[i] *= 0.8
-                    height = float(4 + self.current_amplitudes[i] * 46)
-                    y1, y2 = float(30 - height / 2), float(30 + height / 2)
-                    coords = self.bar_canvas.coords(self.bars[i])
-                    if coords:
-                        self.bar_canvas.coords(self.bars[i], coords[0], y1, coords[2], y2)
+                    height = max(6, int(4 + self.current_amplitudes[i] * 46))
+                    y_pos = 30 - height // 2
+                    self.bars[i].configure(height=height)
+                    self.bars[i].place(y=y_pos)
+                
+                # Descenso suave salida
+                if self.current_amplitudes_out[i] > 0.01:
+                    self.current_amplitudes_out[i] *= 0.8
+                    h_out = max(6, int(4 + self.current_amplitudes_out[i] * 46))
+                    y_pos_o = 30 - h_out // 2
+                    self.bars_out[i].configure(height=h_out)
+                    self.bars_out[i].place(y=y_pos_o)
         self.after(16, self._animate_bars)
 
     def _show_manual(self, event=None):
@@ -561,7 +624,7 @@ class AudioDelayApp(ctk.CTk):
             "   - Presiona Iniciar.\n\n"
             "2. En la otra app (OBS, Discord, Meet, Zoom...):\n"
             "   - Ve a Configuracion > Audio > Microfono.\n"
-            "   - Selecciona 'Micyn - Retraso de audio'.\n\n"
+            "   - Selecciona 'Micyn'.\n\n"
             "3. Monitores (solo para tus auriculares, NO afectan la salida Micyn):\n"
             "   - Sin delay  → escuchas tu voz en tiempo real para guiarte.\n"
             "   - Con delay  → escuchas tu voz con el delay para verificar\n"
@@ -583,7 +646,7 @@ class AudioDelayApp(ctk.CTk):
             devices = sd.query_devices()
             exclude = ['iec958', 'spdif', 'surround', 'dmix', 'dsnoop', 'sysdefault',
                        'front:', 'rear:', 'center_lfe',
-                       'delaysinkinternal', 'micynoutput', 'micynmic']
+                       'delaysinkinternal', 'micynoutput', 'micynmic', 'micyn']
 
             self.inputs  = []
             self.outputs = []
@@ -621,6 +684,15 @@ class AudioDelayApp(ctk.CTk):
         sub_font   = ctk.CTkFont(family="Google Sans", size=15)
         label_font = ctk.CTkFont(family="Google Sans", size=12, weight="bold")
         combo_font = ctk.CTkFont(family="Google Sans", size=14)
+
+        def _bind_combo_open(cmb):
+            """Vincula el clic genérico en la caja para abrir el drop-down si no está deshabilitado."""
+            def force_open(e):
+                if cmb.cget("state") != "disabled":
+                    cmb._clicked()
+            cmb.bind("<Button-1>", force_open)
+            if hasattr(cmb, "_entry"):
+                cmb._entry.bind("<Button-1>", force_open)
 
         # Logo
         try:
@@ -671,6 +743,7 @@ class AudioDelayApp(ctk.CTk):
             button_color="#18181A", button_hover_color="#27272A",
             dropdown_fg_color="#18181A", text_color="#FFFFFF", state="readonly")
         self.input_combobox.pack(padx=40, pady=(0, 20), fill="x")
+        _bind_combo_open(self.input_combobox)
 
         # Tiempo
         ctk.CTkLabel(self, text="TIEMPO DE RETRASO",
@@ -685,6 +758,7 @@ class AudioDelayApp(ctk.CTk):
             command=self._on_time_change)
         self.time_combobox.pack(padx=40, pady=(0, 5), fill="x")
         self.time_combobox.set("1 Minuto")
+        _bind_combo_open(self.time_combobox)
 
         self.custom_time_entry = ctk.CTkEntry(
             self, width=280, height=40, corner_radius=10,
@@ -694,7 +768,7 @@ class AudioDelayApp(ctk.CTk):
         self.custom_time_entry.configure(state="disabled", fg_color="#09090B")
 
         # Monitores
-        ctk.CTkLabel(self, text="MONITOR DE VOZ (solo auriculares, no afecta la salida Micyn)",
+        ctk.CTkLabel(self, text="ESCUCHAR MI PROPIA VOZ (solo auriculares, no afecta la salida Micyn)",
                      font=label_font, text_color="#A0AEC0").pack(anchor="w", padx=40, pady=(0, 5))
 
         mc = ctk.CTkFrame(self, fg_color="transparent")
@@ -724,22 +798,56 @@ class AudioDelayApp(ctk.CTk):
             fg_color="#27272A", switch_width=36, switch_height=18)
         self.monitor_delay_chk.pack(expand=True, padx=10, pady=10)
 
-        # Vumetro
-        abg = ctk.CTkFrame(self, fg_color="#18181A", corner_radius=15, height=80, width=280)
-        abg.pack_propagate(False)
-        abg.pack(padx=40, pady=(0, 20), fill="x")
-        self.bar_canvas = tk.Canvas(abg, width=200, height=60, bg="#18181A", highlightthickness=0)
-        self.bar_canvas.pack(expand=True)
-        bar_width = 8
-        spacing   = 15
+        # Vumetros Container (Lado a Lado)
+        vumeters_container = ctk.CTkFrame(self, fg_color="transparent")
+        vumeters_container.pack(padx=40, pady=(0, 20), fill="x")
+
+        # Vumetro: Entrada
+        vu_in_frame = ctk.CTkFrame(vumeters_container, fg_color="transparent")
+        vu_in_frame.pack(side="left", expand=True, fill="both", padx=(0, 5))
+        ctk.CTkLabel(vu_in_frame, text="ENTRADA MIC", font=label_font, text_color="#A0AEC0").pack(anchor="center", pady=(0, 5))
+        abg_in = ctk.CTkFrame(vu_in_frame, fg_color="#18181A", corner_radius=15, height=80)
+        abg_in.pack_propagate(False)
+        abg_in.pack(fill="x")
+        self.vumeter_in_container = ctk.CTkFrame(abg_in, width=130, height=60, fg_color="transparent")
+        self.vumeter_in_container.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Vumetro: Salida Virtual
+        vu_out_frame = ctk.CTkFrame(vumeters_container, fg_color="transparent")
+        vu_out_frame.pack(side="right", expand=True, fill="both", padx=(5, 0))
+        ctk.CTkLabel(vu_out_frame, text="SALIDA MICYN", font=label_font, text_color="#A0AEC0").pack(anchor="center", pady=(0, 5))
+        abg_out = ctk.CTkFrame(vu_out_frame, fg_color="#18181A", corner_radius=15, height=80)
+        abg_out.pack_propagate(False)
+        abg_out.pack(fill="x")
+        self.vumeter_out_container = ctk.CTkFrame(abg_out, width=130, height=60, fg_color="transparent")
+        self.vumeter_out_container.place(relx=0.5, rely=0.5, anchor="center")
+        
+        self.waiting_label_out = ctk.CTkLabel(
+            abg_out, text="ESPERANDO...", 
+            font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"),
+            text_color="#F59E0B"
+        )
+
+        bar_width = 6
+        spacing   = 6
         total_w   = self.num_bars * bar_width + (self.num_bars - 1) * spacing
-        offset_x  = (200 - total_w) // 2
+        offset_x  = (130 - total_w) // 2
+
+        self.bars.clear()
+        self.bars_out.clear()
+
+        # Dibujar barras de Entrada (Azul) y Salida (Verde) con CTkFrame renderizado
         for i in range(self.num_bars):
-            x1 = offset_x + i * (bar_width + spacing)
-            x2 = x1 + bar_width
-            self.bars.append(
-                self.bar_canvas.create_rectangle(x1, 28, x2, 32, fill="#4570F7",
-                                                 outline="", tags=f"bar_{i}"))
+            xc = offset_x + i * (bar_width + spacing)
+            
+            bar_in = ctk.CTkFrame(self.vumeter_in_container, width=bar_width, height=6, corner_radius=3, fg_color="#4570F7")
+            bar_in.place(x=xc, y=27)
+            self.bars.append(bar_in)
+            
+            bar_out = ctk.CTkFrame(self.vumeter_out_container, width=bar_width, height=6, corner_radius=3, fg_color="#10B981")
+            bar_out.place(x=xc, y=27)
+            self.bars_out.append(bar_out)
+
         self._animate_bars()
 
         # Botones
