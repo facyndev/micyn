@@ -50,3 +50,11 @@ Tras enviar la etiqueta `v1.0.1`, los laboratorios de **GitHub Actions** tomará
 1. Despertarán un Servidor Windows y uno Ubuntu de manera simultánea en la nube.
 2. Compilarán `build_windows.bat` y `build_ubuntu.sh` desde cero resolviendo dependencias internamente.
 3. Construirán los binarios finales (`.exe` y `.deb`) y los publicarán automáticamente en la sección **Releases** de este repositorio.
+
+---
+
+## 📄 Licencia
+Este proyecto está bajo la [Licencia MIT](LICENSE) - mira el archivo para más detalles.
+
+Copyright (c) 2026 Facundo Grieco
+

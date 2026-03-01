@@ -19,6 +19,13 @@ echo "Limpiando entornos anteriores..."
 rm -rf build/ dist/ "$DEB_DIR"
 mkdir -p releases
 
+echo "Verificando/Instalando dependencias requeridas..."
+if [ ! -d ".venv" ]; then
+    echo "No se encontró un entorno virtual. Creando uno..."
+    python3 -m venv .venv
+fi
+./.venv/bin/pip install -r requirements.txt
+
 echo "Compilando binario con PyInstaller..."
 ./.venv/bin/pyinstaller --noconfirm --onedir --windowed --name "$APP_NAME" "main.py"
 

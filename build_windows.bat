@@ -14,8 +14,15 @@ echo ==============================================
 
 if not exist "releases" mkdir releases
 
+echo Verificando dependencias...
+if not exist ".venv" (
+    echo Creando entorno virtual Windows...
+    python -m venv .venv
+)
+.\.venv\Scripts\pip install -r requirements.txt
+
 :: Ejecutar el PyInstaller del entorno de Windows (--onefile para portabilidad)
-python -m PyInstaller --noconfirm --onefile --windowed --name "%APP_NAME%" "main.py"
+.\.venv\Scripts\pyinstaller --noconfirm --onefile --windowed --name "%APP_NAME%" "main.py"
 
 if exist "dist\%APP_NAME%.exe" (
     echo.
