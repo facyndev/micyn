@@ -9,9 +9,12 @@ import platform
 import subprocess
 import os
 import sys
+import urllib.request
+import json
+import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -95,6 +98,38 @@ class AudioDelayApp(ctk.CTk):
         self._create_widgets()
         self._init_virtual_cable()
         self.after(500, self._populate_devices)
+        self.after(2000, self._start_update_check)
+
+    # ─────────────────────────────────────────────
+    #   ACTUALIZACIONES
+    # ─────────────────────────────────────────────
+
+    def _start_update_check(self):
+        """Inicia la verificación en un hilo separado para no bloquear la UI."""
+        thread = threading.Thread(target=self._check_for_updates, daemon=True)
+        thread.start()
+
+    def _check_for_updates(self):
+        """Consulta la API de GitHub para buscar versiones estables."""
+        url = "https://api.github.com/repos/facyndev/micyn/releases/latest"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Micyn-App'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode())
+                latest_version = data.get("tag_name", "").replace("v", "")
+                
+                # Comparar versiones (Lógica simple: si es distinta y mayor)
+                if latest_version and latest_version != __version__:
+                    # Solo lo marcamos como disponible si no es pre-release (GitHub Latest lo garantiza)
+                    self.after(0, lambda: self._show_update_notification(latest_version))
+        except:
+            # Fallo silencioso si no hay internet o error de API
+            pass
+
+    def _show_update_notification(self, version):
+        """Muestra el botón de actualización en la interfaz."""
+        self.update_btn.configure(text=f"✨ Actualización disponible v{version}")
+        self.update_btn.pack(pady=(5, 15))
 
     # ─────────────────────────────────────────────
     #   CABLES VIRTUALES
@@ -747,7 +782,15 @@ class AudioDelayApp(ctk.CTk):
         lnk = ctk.CTkLabel(desc_frame, text="@facyndev.",
                             font=sub_font, text_color="#4570F7", cursor="hand2")
         lnk.pack(side="left")
-        lnk.bind("<Button-1>", lambda e: __import__("webbrowser").open("https://www.facyn.xyz"))
+        lnk.bind("<Button-1>", lambda e: webbrowser.open("https://www.facyn.xyz"))
+
+        # Boton de Actualizacion (Oculto por defecto)
+        self.update_btn = ctk.CTkButton(
+            self, text="", command=lambda: webbrowser.open("https://github.com/facyndev/micyn/releases"),
+            fg_color="#F59E0B", hover_color="#D97706", text_color="#000000",
+            font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"),
+            height=32, corner_radius=8, cursor="hand2")
+        # No se empaqueta (pack) aquí, se hace en _show_update_notification
 
         # Manual
         hf = ctk.CTkFrame(self, fg_color="transparent")
