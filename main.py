@@ -51,13 +51,22 @@ class AudioDelayApp(ctk.CTk):
         self.title("Micyn")
         self.configure(fg_color="#09090B")
         try:
-            icon_path = resource_path("icon.png")
-            if os.path.exists(icon_path):
-                from PIL import Image, ImageTk
-                self._icon_pil = Image.open(icon_path)
-                icon_small = self._icon_pil.resize((64, 64), Image.LANCZOS)
-                self._icon_tk = ImageTk.PhotoImage(icon_small, master=self)
-                self.iconphoto(True, self._icon_tk)
+            if self.os_system == "Windows":
+                icon_ico_path = resource_path("icon.ico")
+                if os.path.exists(icon_ico_path):
+                    self.iconbitmap(icon_ico_path)
+                else:
+                    icon_path = resource_path("icon.png")
+                    if os.path.exists(icon_path):
+                        self.iconphoto(True, tk.PhotoImage(file=icon_path))
+            else:
+                icon_path = resource_path("icon.png")
+                if os.path.exists(icon_path):
+                    from PIL import Image, ImageTk
+                    self._icon_pil = Image.open(icon_path)
+                    icon_small = self._icon_pil.resize((64, 64), Image.LANCZOS)
+                    self._icon_tk = ImageTk.PhotoImage(icon_small, master=self)
+                    self.iconphoto(True, self._icon_tk)
         except Exception as e:
             print("Icono no cargado:", e)
 
@@ -131,7 +140,10 @@ class AudioDelayApp(ctk.CTk):
                 data = json.loads(response.read().decode())
                 latest_version = data.get("tag_name", "").replace("v", "")
                 
-                if latest_version and latest_version != __version__:
+                def parse_v(v_str):
+                    return [int(x) for x in v_str.replace("v", "").split('.') if x.isdigit()]
+                
+                if latest_version and parse_v(latest_version) > parse_v(__version__):
                     target_ext = ".exe" if platform.system() == "Windows" else ".deb"
                     assets = data.get("assets", [])
                     for asset in assets:
@@ -213,7 +225,13 @@ class AudioDelayApp(ctk.CTk):
     def _execute_installer(self):
         try:
             if platform.system() == "Windows": os.startfile(self.download_path)
-            else: subprocess.Popen(["xdg-open", self.download_path])
+            else:
+                try:
+                    # En Linux, usar pkexec para evitar el bug de Ubuntu Software
+                    subprocess.Popen(["pkexec", "env", "DISPLAY=$DISPLAY", "XAUTHORITY=$XAUTHORITY", "dpkg", "-i", self.download_path])
+                except Exception as e:
+                    # Fallback
+                    subprocess.Popen(["xdg-open", self.download_path])
             self.destroy()
             sys.exit(0)
         except Exception as e:
@@ -290,8 +308,8 @@ class AudioDelayApp(ctk.CTk):
         self.windows_cable_index = None
 
         self._cleanup_virtual_cable()
-        self._create_widgets()
         self._init_virtual_cable()
+        self._create_widgets()
         self.after(500, self._populate_devices)
 
 
@@ -873,12 +891,12 @@ class AudioDelayApp(ctk.CTk):
             "   - Presiona Iniciar.\n\n"
             "2. En la otra app (OBS, Discord, Meet, Zoom...):\n"
             "   - Ve a Configuracion > Audio > Microfono.\n"
-            "   - Selecciona 'Micyn'.\n\n"
-            "3. Monitores (solo para tus auriculares, NO afectan la salida Micyn):\n"
+            f"   - Selecciona '{'CABLE Output' if self.os_system == 'Windows' else 'Micyn'}'.\n\n"
+            "3. Monitores (solo para tus auriculares, NO afectan la salida configurada):\n"
             "   - Sin delay  → escuchas tu voz en tiempo real para guiarte.\n"
             "   - Con delay  → escuchas tu voz con el delay para verificar\n"
             "                  como llega a la otra aplicacion.\n\n"
-            "La salida 'Micyn' SIEMPRE entrega el audio con el delay configurado,\n"
+            "El audio emitido SIEMPRE tendra el delay configurado,\n"
             "independientemente de que opcion de monitor uses."
         )
 
@@ -1099,7 +1117,8 @@ class AudioDelayApp(ctk.CTk):
         # Vumetro: Salida Virtual
         vu_out_frame = ctk.CTkFrame(vumeters_container, fg_color="transparent")
         vu_out_frame.pack(side="right", expand=True, fill="both", padx=(5, 0))
-        ctk.CTkLabel(vu_out_frame, text="SALIDA MICYN", font=label_font, text_color="#A0AEC0").pack(anchor="center", pady=(0, 5))
+        out_lbl = "SALIDA: CABLE" if self.os_system == "Windows" else "SALIDA MICYN"
+        ctk.CTkLabel(vu_out_frame, text=out_lbl, font=label_font, text_color="#A0AEC0").pack(anchor="center", pady=(0, 5))
         abg_out = ctk.CTkFrame(vu_out_frame, fg_color="#18181A", corner_radius=15, height=80)
         abg_out.pack_propagate(False)
         abg_out.pack(fill="x")

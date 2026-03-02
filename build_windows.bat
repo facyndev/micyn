@@ -30,6 +30,7 @@ if not exist "icon.ico" (
 :: Ejecutar el PyInstaller del entorno de Windows (--onefile para portabilidad)
 .\.venv\Scripts\pyinstaller --noconfirm --onefile --windowed ^
     --add-data "icon.png;." ^
+    --add-data "icon.ico;." ^
     --icon "icon.ico" ^
     --name "%APP_NAME%" "main.py"
 
