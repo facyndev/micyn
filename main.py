@@ -14,7 +14,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -27,21 +27,138 @@ def resource_path(relative_path):
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
+class UpdaterSplash(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+
+        self.title("Micyn Updater")
+        self.geometry("400x320")
+        self.overrideredirect(True)  # Sin bordes
+        self.configure(fg_color="#09090B")
+
+        # Centrar ventana
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        x = (sw // 2) - 200
+        y = (sh // 2) - 160
+        self.geometry(f"+{x}+{y}")
+
+        # Logo
+        try:
+            from PIL import ImageDraw
+            logo_path = resource_path("icon.png")
+            if not os.path.exists(logo_path):
+                # Fallback por si no existe icon.png aún
+                logo_path = "micyn_logo.jpg"
+            
+            logo_pil = Image.open(logo_path).convert("RGBA")
+            logo_pil = logo_pil.resize((120, 120), Image.LANCZOS)
+            
+            # Bordes redondeados para el logo
+            mask = Image.new("L", (120, 120), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle((0, 0, 120, 120), radius=25, fill=255)
+            logo_pil.putalpha(mask)
+            
+            self.logo_img = ctk.CTkImage(light_image=logo_pil, dark_image=logo_pil, size=(120, 120))
+            ctk.CTkLabel(self, text="", image=self.logo_img).pack(pady=(40, 10))
+        except:
+            ctk.CTkLabel(self, text="Micyn", font=("Google Sans", 32, "bold"), text_color="#FFFFFF").pack(pady=(60, 10))
+
+        self.status_lbl = ctk.CTkLabel(self, text="Buscando actualizaciones...", 
+                                      font=("Google Sans", 14), text_color="#A0AEC0")
+        self.status_lbl.pack(pady=10)
+
+        self.progress = ctk.CTkProgressBar(self, width=280, height=4, corner_radius=2, 
+                                           fg_color="#18181A", progress_color="#4570F7")
+        self.progress.pack(pady=10)
+        self.progress.set(0)
+        self.progress.start()
+
+        self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        # No se empaqueta aún
+
+        self.update_available = False
+        self.latest_v = None
+        
+        # Iniciar chequeo
+        self.after(1000, self._check)
+
+    def _check(self):
+        thread = threading.Thread(target=self._run_network_check, daemon=True)
+        thread.start()
+
+    def _run_network_check(self):
+        url = "https://api.github.com/repos/facyndev/micyn/releases/latest"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Micyn-Updater'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode())
+                latest_version = data.get("tag_name", "").replace("v", "")
+                
+                if latest_version and latest_version != __version__:
+                    self.latest_v = latest_version
+                    self.update_available = True
+                    self.after(0, self._on_update_found)
+                else:
+                    self.after(0, self._finalize)
+        except:
+            # Sin internet o error, pasamos directo a la app
+            self.after(0, self._finalize)
+
+    def _on_update_found(self):
+        self.progress.stop()
+        self.progress.pack_forget()
+        self.status_lbl.configure(text=f"¡Nueva versión disponible: v{self.latest_v}!", text_color="#F59E0B")
+        
+        self.btn_frame.pack(pady=20)
+        
+        ctk.CTkButton(self.btn_frame, text="Descargar ahora", width=140, height=35,
+                      fg_color="#F59E0B", hover_color="#D97706", text_color="#000000",
+                      font=("Google Sans", 12, "bold"),
+                      command=lambda: webbrowser.open("https://github.com/facyndev/micyn/releases")).pack(side="left", padx=5)
+        
+        ctk.CTkButton(self.btn_frame, text="Saltar", width=80, height=35,
+                      fg_color="#27272A", hover_color="#3F3F46",
+                      font=("Google Sans", 12),
+                      command=self._finalize).pack(side="left", padx=5)
+
+    def _finalize(self):
+        self.status_lbl.configure(text="Iniciando Micyn...", text_color="#4570F7")
+        if not self.update_available:
+            self.progress.set(1)
+            self.progress.stop()
+        
+        self.after(800, self._launch_app)
+
+    def _launch_app(self):
+        self.withdraw()
+        main_app = AudioDelayApp()
+        
+        def on_closing():
+            main_app.stop()
+            main_app._cleanup_virtual_cable()
+            main_app.destroy()
+            self.destroy() # Cerramos el proceso completo
+
+        main_app.protocol("WM_DELETE_WINDOW", on_closing)
+        main_app.mainloop()
+
 class AudioDelayApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("Micyn")
         try:
-            # Icono de ventana
+            # Icono de ventana - Usamos PhotoImage para evitar conflictos pyimage
             icon_path = resource_path("icon.png")
             if os.path.exists(icon_path):
-                pil_img = Image.open(icon_path)
-                pil_img.thumbnail((256, 256))
-                icon_img = ImageTk.PhotoImage(pil_img)
-                self.iconphoto(True, icon_img)
+                from PIL import Image, ImageTk
+                self._icon_pil = Image.open(icon_path)
+                self._icon_tk = ImageTk.PhotoImage(self._icon_pil)
+                self.iconphoto(True, self._icon_tk)
         except Exception as e:
-            print("Logo no cargado como icono:", e)
+            print("Icono no cargado:", e)
         try:
             self.attributes('-zoomed', True)
         except:
@@ -98,38 +215,7 @@ class AudioDelayApp(ctk.CTk):
         self._create_widgets()
         self._init_virtual_cable()
         self.after(500, self._populate_devices)
-        self.after(2000, self._start_update_check)
 
-    # ─────────────────────────────────────────────
-    #   ACTUALIZACIONES
-    # ─────────────────────────────────────────────
-
-    def _start_update_check(self):
-        """Inicia la verificación en un hilo separado para no bloquear la UI."""
-        thread = threading.Thread(target=self._check_for_updates, daemon=True)
-        thread.start()
-
-    def _check_for_updates(self):
-        """Consulta la API de GitHub para buscar versiones estables."""
-        url = "https://api.github.com/repos/facyndev/micyn/releases/latest"
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Micyn-App'})
-            with urllib.request.urlopen(req, timeout=5) as response:
-                data = json.loads(response.read().decode())
-                latest_version = data.get("tag_name", "").replace("v", "")
-                
-                # Comparar versiones (Lógica simple: si es distinta y mayor)
-                if latest_version and latest_version != __version__:
-                    # Solo lo marcamos como disponible si no es pre-release (GitHub Latest lo garantiza)
-                    self.after(0, lambda: self._show_update_notification(latest_version))
-        except:
-            # Fallo silencioso si no hay internet o error de API
-            pass
-
-    def _show_update_notification(self, version):
-        """Muestra el botón de actualización en la interfaz."""
-        self.update_btn.configure(text=f"✨ Actualización disponible v{version}")
-        self.update_btn.pack(pady=(5, 15))
 
     # ─────────────────────────────────────────────
     #   CABLES VIRTUALES
@@ -784,13 +870,6 @@ class AudioDelayApp(ctk.CTk):
         lnk.pack(side="left")
         lnk.bind("<Button-1>", lambda e: webbrowser.open("https://www.facyn.xyz"))
 
-        # Boton de Actualizacion (Oculto por defecto)
-        self.update_btn = ctk.CTkButton(
-            self, text="", command=lambda: webbrowser.open("https://github.com/facyndev/micyn/releases"),
-            fg_color="#F59E0B", hover_color="#D97706", text_color="#000000",
-            font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"),
-            height=32, corner_radius=8, cursor="hand2")
-        # No se empaqueta (pack) aquí, se hace en _show_update_notification
 
         # Manual
         hf = ctk.CTkFrame(self, fg_color="transparent")
@@ -951,12 +1030,5 @@ class AudioDelayApp(ctk.CTk):
 
 
 if __name__ == "__main__":
-    app = AudioDelayApp()
-
-    def on_closing():
-        app.stop()
-        app._cleanup_virtual_cable()
-        app.destroy()
-
-    app.protocol("WM_DELETE_WINDOW", on_closing)
-    app.mainloop()
+    splash = UpdaterSplash()
+    splash.mainloop()
