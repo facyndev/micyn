@@ -18,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.2.4"
+__version__ = "1.2.5"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -227,9 +227,10 @@ class AudioDelayApp(ctk.CTk):
             if platform.system() == "Windows": os.startfile(self.download_path)
             else:
                 try:
-                    # En Linux, usar pkexec para evitar el bug de Ubuntu Software
-                    subprocess.Popen(["pkexec", "env", "DISPLAY=$DISPLAY", "XAUTHORITY=$XAUTHORITY", "dpkg", "-i", self.download_path])
-                except Exception as e:
+                    # En Linux, usar pkexec con bash para instalar el deb limpiamente y en primer plano visual de permisos
+                    install_cmd = f"pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY dpkg -i '{self.download_path}'"
+                    subprocess.Popen(install_cmd, shell=True)
+                except Exception:
                     # Fallback
                     subprocess.Popen(["xdg-open", self.download_path])
             self.destroy()
@@ -1053,19 +1054,24 @@ class AudioDelayApp(ctk.CTk):
                       command=self._recheck_cable_windows).pack(pady=5)
 
     def _recheck_cable_windows(self):
-        """Reinicia la detección y reconstruye la interfaz si se encuentra el cable."""
-        sd._terminate() # Forzar refresco de la lista de dispositivos de sounddevice
-        sd._initialize()
-        self._init_virtual_cable()
-        
-        if self.windows_cable_found:
-            # Limpiar frame de bloqueo y cargar widgets normales
-            for widget in self.main_frame.winfo_children():
-                widget.destroy()
-            self._create_widgets()
-            self._populate_devices()
-        else:
-            messagebox.showwarning("Micyn", "Todavía no se detecta el cable. Por favor, instálalo y asegúrate de haber reiniciado si el instalador lo solicitó.")
+        """Reinicia la aplicación por completo para volver a detectar cables y evitar fuga de memoria."""
+        try:
+            # Liberar el bloqueo del archivo para que la nueva instancia pueda abrir
+            if _app_lock_file:
+                import msvcrt
+                try: msvcrt.locking(_app_lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                except: pass
+                _app_lock_file.close()
+
+            # Reiniciar la app
+            executable = sys.executable
+            args = sys.argv[:]
+            subprocess.Popen([executable] + args)
+        except Exception as e:
+            print(f"Error reiniciando: {e}")
+        finally:
+            self.destroy()
+            sys.exit(0)
 
 
         def _bind_combo_open(cmb):
