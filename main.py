@@ -18,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.2.5"
+__version__ = "1.2.6"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -1057,11 +1057,14 @@ class AudioDelayApp(ctk.CTk):
         """Reinicia la aplicación por completo para volver a detectar cables y evitar fuga de memoria."""
         try:
             # Liberar el bloqueo del archivo para que la nueva instancia pueda abrir
+            global _app_lock_file
             if _app_lock_file:
                 import msvcrt
                 try: msvcrt.locking(_app_lock_file.fileno(), msvcrt.LK_UNLCK, 1)
                 except: pass
-                _app_lock_file.close()
+                try: _app_lock_file.close()
+                except: pass
+                _app_lock_file = None
 
             # Reiniciar la app
             executable = sys.executable
@@ -1259,7 +1262,7 @@ def _check_single_instance():
         try:
             import fcntl
             _app_lock_file = open(lock_file, 'w')
-            fcntl.flock(_app_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(_app_lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             return True
         except (IOError, OSError):
             return False
