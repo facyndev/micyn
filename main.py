@@ -142,13 +142,13 @@ class UpdaterSplash(ctk.CTk):
         
         btn_font = self._get_button_font()
         
-        # Botón Actualizar (Estilo Principal)
+        # Botón Actualizar (Estilo Principal - Azul Micyn)
         ctk.CTkButton(self, text="⚡ Actualizar ahora", width=280, height=50, corner_radius=25,
-                      fg_color="#F59E0B", hover_color="#D97706", text_color="#000000",
+                      fg_color="#4570F7", hover_color="#2F52CC", text_color="#FFFFFF",
                       font=btn_font,
                       command=self._start_download).pack(pady=(20, 10))
         
-        # Botón Omitir (Estilo Secundario)
+        # Botón Omitir (Estilo Secundario - Oscuro)
         ctk.CTkButton(self, text="Omitir por ahora", width=280, height=50, corner_radius=25,
                       fg_color="#27272A", hover_color="#3F3F46", text_color="#7A8084",
                       font=btn_font,
