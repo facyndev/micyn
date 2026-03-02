@@ -4,7 +4,7 @@ set -e
 echo "=== Compilador Micyn para Ubuntu (DEB) ==="
 
 # Extraer version de main.py
-VERSION=$(grep '__version__' main.py | cut -d '"' -f 2)
+VERSION=$(grep -m 1 "^__version__ =" main.py | cut -d '"' -f 2)
 if [ -z "$VERSION" ]; then
     VERSION="1.0.0"
 fi

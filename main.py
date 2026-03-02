@@ -11,7 +11,7 @@ import os
 import sys
 from PIL import Image, ImageTk
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
