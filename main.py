@@ -14,7 +14,16 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.0.8"
+__version__ = "1.0.9"
+
+# Identidad de la aplicación (Windows Taskbar Icon Fix)
+if platform.system() == "Windows":
+    try:
+        import ctypes
+        myappid = f'facyndev.micyn.app.{__version__}'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except:
+        pass
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -29,7 +38,7 @@ ctk.set_default_color_theme("blue")
 
 class UpdaterSplash(ctk.CTk):
     def __init__(self):
-        super().__init__()
+        super().__init__(className="Micyn")
 
         self.title("Micyn Updater")
         self.geometry("400x320")
@@ -62,6 +71,10 @@ class UpdaterSplash(ctk.CTk):
             
             self.logo_img = ctk.CTkImage(light_image=logo_pil, dark_image=logo_pil, size=(120, 120))
             ctk.CTkLabel(self, text="", image=self.logo_img).pack(pady=(40, 10))
+            
+            # Cargar icono de ventana aunque sea splash (ayuda al branding del proceso)
+            self._icon_tk = ImageTk.PhotoImage(logo_pil)
+            self.iconphoto(True, self._icon_tk)
         except:
             ctk.CTkLabel(self, text="Micyn", font=("Google Sans", 32, "bold"), text_color="#FFFFFF").pack(pady=(60, 10))
 
@@ -146,7 +159,7 @@ class UpdaterSplash(ctk.CTk):
 
 class AudioDelayApp(ctk.CTk):
     def __init__(self):
-        super().__init__()
+        super().__init__(className="Micyn")
 
         self.title("Micyn")
         try:
