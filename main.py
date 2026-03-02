@@ -18,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.2.6"
+__version__ = "1.2.7"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -770,18 +770,19 @@ class AudioDelayApp(ctk.CTk):
         if self.audio_thread and self.audio_thread.is_alive():
             self.audio_thread.join(timeout=1.0)
 
-        self.start_btn.configure(state="normal", fg_color="#4570F7", text="▶  Iniciar retraso de audio")
-        self.input_combobox.configure(state="readonly")
-        self.time_combobox.configure(state="readonly")
-        
-        # Validar la habilitación del Custom Entry en función del valor actual
-        self._on_time_change(self.time_combobox.get())
+        if hasattr(self, 'start_btn') and self.start_btn.winfo_exists():
+            self.start_btn.configure(state="normal", fg_color="#4570F7", text="▶  Iniciar retraso de audio")
+            self.input_combobox.configure(state="readonly")
+            self.time_combobox.configure(state="readonly")
+            
+            # Validar la habilitación del Custom Entry en función del valor actual
+            self._on_time_change(self.time_combobox.get())
 
-        self.monitor_chk.configure(state="normal")
-        self.monitor_delay_chk.configure(state="normal")
-        self.stop_btn.configure(state="disabled", text_color="#7A8084", fg_color="#27272A")
-        self.status_dot.configure(text_color="#A0AEC0")
-        self.status_lbl.configure(text="ESTADO: APAGADO")
+            self.monitor_chk.configure(state="normal")
+            self.monitor_delay_chk.configure(state="normal")
+            self.stop_btn.configure(state="disabled", text_color="#7A8084", fg_color="#27272A")
+            self.status_dot.configure(text_color="#A0AEC0")
+            self.status_lbl.configure(text="ESTADO: APAGADO")
 
     # ─────────────────────────────────────────────
     #   UI HELPERS
@@ -1059,22 +1060,35 @@ class AudioDelayApp(ctk.CTk):
             # Liberar el bloqueo del archivo para que la nueva instancia pueda abrir
             global _app_lock_file
             if _app_lock_file:
-                import msvcrt
-                try: msvcrt.locking(_app_lock_file.fileno(), msvcrt.LK_UNLCK, 1)
-                except: pass
+                if self.os_system == "Windows":
+                    import msvcrt
+                    try: msvcrt.locking(_app_lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                    except: pass
+                else:
+                    import fcntl
+                    try: fcntl.flock(_app_lock_file.fileno(), fcntl.LOCK_UN)
+                    except: pass
                 try: _app_lock_file.close()
                 except: pass
                 _app_lock_file = None
 
-            # Reiniciar la app
             executable = sys.executable
             args = sys.argv[:]
-            subprocess.Popen([executable] + args)
+            
+            # Detener app actual de forma limpia
+            self.destroy()
+            
+            if self.os_system == "Windows":
+                # DETACHED_PROCESS = 0x00000008, independiza el subproceso hijo
+                subprocess.Popen([executable] + args, creationflags=0x00000008)
+                os._exit(0) # Forzar cierre agresivo para matar la UI principal colgada
+            else:
+                # Reemplazo de proceso para Linux (más puro, sin PID hijo)
+                os.execl(executable, executable, *args)
+                
         except Exception as e:
             print(f"Error reiniciando: {e}")
-        finally:
-            self.destroy()
-            sys.exit(0)
+            os._exit(1)
 
 
         def _bind_combo_open(cmb):
@@ -1273,14 +1287,18 @@ if __name__ == "__main__":
         root = tk.Tk()
         root.withdraw()
         messagebox.showwarning("Micyn ya está abierto", "La aplicación ya se encuentra en ejecución.")
-        sys.exit(0)
+        os._exit(0)
         
     main_app = AudioDelayApp()
     
     def on_closing():
-        main_app.stop()
+        try:
+            main_app.stop()
+        except:
+            pass
         main_app._cleanup_virtual_cable()
         main_app.destroy()
+        os._exit(0) # Forzar salida completa
 
     main_app.protocol("WM_DELETE_WINDOW", on_closing)
     main_app.mainloop()
