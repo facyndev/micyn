@@ -5,8 +5,12 @@ import numpy as np
 import threading
 import queue
 import time
+import math
+import struct
+import tempfile
 import platform
 import subprocess
+from tkinter import messagebox
 import os
 import sys
 import urllib.request
@@ -14,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -34,74 +38,90 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 ctk.set_appearance_mode("dark")
+
+
 ctk.set_default_color_theme("blue")
 
-class UpdaterSplash(ctk.CTk):
+class AudioDelayApp(ctk.CTk):
     def __init__(self):
         super().__init__(className="Micyn")
-
-        self.title("Micyn Updater")
-        self.geometry("400x320")
-        self.overrideredirect(True)  # Sin bordes
+        
+        # -- FASE 1: INICIALIZACIÓN DE VARIABLES BASE --
+        self.os_system = platform.system()
+        self.title("Micyn")
         self.configure(fg_color="#09090B")
+        try:
+            icon_path = resource_path("icon.png")
+            if os.path.exists(icon_path):
+                from PIL import Image, ImageTk
+                self._icon_pil = Image.open(icon_path)
+                icon_small = self._icon_pil.resize((64, 64), Image.LANCZOS)
+                self._icon_tk = ImageTk.PhotoImage(icon_small, master=self)
+                self.iconphoto(True, self._icon_tk)
+        except Exception as e:
+            print("Icono no cargado:", e)
 
-        # Centrar ventana
+        # Animacion base
+        self.num_bars = 7
+        
+        # -- FASE 2: MODO SPLASH (UPDATER) --
+        self.withdraw() # Ocultar la ventana principal inmediatamente
+        
+        self.splash_window = ctk.CTkToplevel(self)
+        self.splash_window.title("Micyn Splash")
+        self.splash_window.geometry("400x320")
+        self.splash_window.overrideredirect(True) # Sin bordes inicialmente
+        self.splash_window.configure(fg_color="#09090B")
+        
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
         x = (sw // 2) - 200
         y = (sh // 2) - 160
-        self.geometry(f"+{x}+{y}")
-
-        # Logo
-        try:
-            from PIL import ImageDraw
-            logo_path = resource_path("icon.png")
-            if not os.path.exists(logo_path):
-                # Fallback por si no existe icon.png aún
-                logo_path = "micyn_logo.jpg"
-            
-            logo_pil = Image.open(logo_path).convert("RGBA")
-            logo_pil = logo_pil.resize((120, 120), Image.LANCZOS)
-            
-            # Bordes redondeados para el logo
-            mask = Image.new("L", (120, 120), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.rounded_rectangle((0, 0, 120, 120), radius=25, fill=255)
-            logo_pil.putalpha(mask)
-            
-            self.logo_img = ctk.CTkImage(light_image=logo_pil, dark_image=logo_pil, size=(120, 120))
-            ctk.CTkLabel(self, text="", image=self.logo_img).pack(pady=(40, 10))
-            
-            # Cargar icono de ventana aunque sea splash (ayuda al branding del proceso)
-            self._icon_tk = ImageTk.PhotoImage(logo_pil)
-            self.iconphoto(True, self._icon_tk)
-        except:
-            ctk.CTkLabel(self, text="Micyn", font=("Google Sans", 32, "bold"), text_color="#FFFFFF").pack(pady=(60, 10))
-
-        self.status_lbl = ctk.CTkLabel(self, text="Buscando actualizaciones...", 
-                                      font=("Google Sans", 14), text_color="#A0AEC0")
-        self.status_lbl.pack(pady=10)
-
-        self.progress = ctk.CTkProgressBar(self, width=280, height=4, corner_radius=2, 
-                                           fg_color="#18181A", progress_color="#4570F7")
-        self.progress.pack(pady=10)
-        self.progress.set(0)
-        self.progress.start()
-
-        self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        # No se empaqueta aún
+        self.splash_window.geometry(f"+{x}+{y}")
 
         self.update_available = False
         self.latest_v = None
         self.asset_url = None
         self.download_path = None
-        
-        # Iniciar chequeo
-        self.after(1000, self._check)
 
-    def _check(self):
-        thread = threading.Thread(target=self._run_network_check, daemon=True)
-        thread.start()
+        self._build_splash_ui()
+        self.after(500, self._check_update)
+
+    def _build_splash_ui(self):
+        try:
+            from PIL import ImageDraw
+            logo_path = resource_path("icon.png")
+            if not os.path.exists(logo_path):
+                logo_path = "micyn_logo.jpg"
+            
+            logo_pil = Image.open(logo_path).convert("RGBA")
+            logo_pil = logo_pil.resize((120, 120), Image.LANCZOS)
+            
+            mask = Image.new("L", (120, 120), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle((0, 0, 120, 120), radius=25, fill=255)
+            logo_pil.putalpha(mask)
+            
+            self.splash_logo_img = ctk.CTkImage(light_image=logo_pil, dark_image=logo_pil, size=(120, 120))
+            self.splash_logo_lbl = ctk.CTkLabel(self.splash_window, text="", image=self.splash_logo_img)
+            self.splash_logo_lbl.pack(pady=(40, 10))
+        except:
+            self.splash_logo_lbl = ctk.CTkLabel(self.splash_window, text="Micyn", font=("Google Sans", 32, "bold"), text_color="#FFFFFF")
+            self.splash_logo_lbl.pack(pady=(60, 10))
+
+        self.splash_status_lbl = ctk.CTkLabel(self.splash_window, text="Buscando actualizaciones...", 
+                                      font=("Google Sans", 14), text_color="#A0AEC0")
+        self.splash_status_lbl.pack(pady=10)
+
+        self.splash_progress = ctk.CTkProgressBar(self.splash_window, width=280, height=4, corner_radius=2, 
+                                           fg_color="#18181A", progress_color="#4570F7")
+        self.splash_progress.pack(pady=10)
+        self.splash_progress.set(0)
+        self.splash_progress.start()
+
+    # --- LÓGICA DEL UPDATER ---
+    def _check_update(self):
+        threading.Thread(target=self._run_network_check, daemon=True).start()
 
     def _run_network_check(self):
         url = "https://api.github.com/repos/facyndev/micyn/releases/latest"
@@ -112,7 +132,6 @@ class UpdaterSplash(ctk.CTk):
                 latest_version = data.get("tag_name", "").replace("v", "")
                 
                 if latest_version and latest_version != __version__:
-                    # Buscar el asset adecuado para el SO
                     target_ext = ".exe" if platform.system() == "Windows" else ".deb"
                     assets = data.get("assets", [])
                     for asset in assets:
@@ -124,54 +143,43 @@ class UpdaterSplash(ctk.CTk):
                     self.update_available = True
                     self.after(0, self._on_update_found)
                 else:
-                    self.after(0, self._finalize)
+                    self.after(0, self._finalize_update)
         except:
-            self.after(0, self._finalize)
+            self.after(0, self._finalize_update)
 
     def _get_button_font(self):
         return ctk.CTkFont(family="Google Sans", size=15, weight="bold")
 
     def _on_update_found(self):
-        self.progress.stop()
-        self.progress.pack_forget()
-        self.status_lbl.configure(text=f"¡NUEVA VERSIÓN: v{self.latest_v}!", text_color="#F59E0B", 
+        self.splash_progress.stop()
+        self.splash_progress.pack_forget()
+        self.splash_status_lbl.configure(text=f"¡NUEVA VERSIÓN: v{self.latest_v}!", text_color="#FFFFFF", 
                                   font=("Google Sans", 16, "bold"))
-        
-        # Ajustamos el tamaño de la ventana para los botones estilo Premium
-        self.geometry("400x420")
-        
+        self.splash_window.geometry("400x420")
         btn_font = self._get_button_font()
         
-        # Botón Actualizar (Estilo Principal - Azul Micyn)
-        ctk.CTkButton(self, text="⚡ Actualizar ahora", width=280, height=50, corner_radius=25,
+        self.splash_btn_update = ctk.CTkButton(self.splash_window, text="⚡ Actualizar ahora", width=280, height=50, corner_radius=25,
                       fg_color="#4570F7", hover_color="#2F52CC", text_color="#FFFFFF",
-                      font=btn_font,
-                      command=self._start_download).pack(pady=(20, 10))
+                      font=btn_font, command=self._start_download)
+        self.splash_btn_update.pack(pady=(20, 10))
         
-        # Botón Omitir (Estilo Secundario - Oscuro)
-        ctk.CTkButton(self, text="Omitir por ahora", width=280, height=50, corner_radius=25,
+        self.splash_btn_skip = ctk.CTkButton(self.splash_window, text="Omitir por ahora", width=280, height=50, corner_radius=25,
                       fg_color="#27272A", hover_color="#3F3F46", text_color="#7A8084",
-                      font=btn_font,
-                      command=self._finalize).pack(pady=5)
+                      font=btn_font, command=self._finalize_update)
+        self.splash_btn_skip.pack(pady=5)
 
     def _start_download(self):
         if not self.asset_url:
-            # Si no hay asset directo, vamos a github como fallback
             webbrowser.open("https://github.com/facyndev/micyn/releases")
-            self._finalize()
+            self._finalize_update()
             return
 
-        # Limpiar UI para mostrar barra de descarga
-        for widget in self.winfo_children():
-            if isinstance(widget, ctk.CTkButton):
-                widget.pack_forget()
-        
-        self.status_lbl.configure(text="Descargando actualización...", text_color="#4570F7")
-        self.progress.set(0)
-        self.progress.pack(pady=20)
-        
-        thread = threading.Thread(target=self._run_download, daemon=True)
-        thread.start()
+        self.splash_btn_update.pack_forget()
+        self.splash_btn_skip.pack_forget()
+        self.splash_status_lbl.configure(text="Descargando actualización...", text_color="#4570F7")
+        self.splash_progress.set(0)
+        self.splash_progress.pack(pady=20)
+        threading.Thread(target=self._run_download, daemon=True).start()
 
     def _run_download(self):
         try:
@@ -179,110 +187,84 @@ class UpdaterSplash(ctk.CTk):
             temp_dir = os.environ.get("TEMP") or os.environ.get("TMPDIR") or "/tmp"
             self.download_path = os.path.join(temp_dir, filename)
             
-            # Descarga con progreso
             req = urllib.request.Request(self.asset_url, headers={'User-Agent': 'Micyn-Updater'})
             with urllib.request.urlopen(req) as response:
                 total_size = int(response.info().get('Content-Length', 0))
                 downloaded = 0
-                block_size = 1024 * 64 # 64KB
-                
+                block_size = 1024 * 64
                 with open(self.download_path, 'wb') as f:
                     while True:
                         buffer = response.read(block_size)
-                        if not buffer:
-                            break
+                        if not buffer: break
                         downloaded += len(buffer)
                         f.write(buffer)
                         if total_size > 0:
                             p = downloaded / total_size
-                            self.after(0, lambda val=p: self.progress.set(val))
-            
+                            self.after(0, lambda val=p: self.splash_progress.set(val))
             self.after(0, self._install_and_exit)
         except Exception as e:
             print(f"Error descargando actualización: {e}")
-            self.after(0, self._finalize)
+            self.after(0, self._finalize_update)
 
     def _install_and_exit(self):
-        self.status_lbl.configure(text="Iniciando instalador...", text_color="#10B981")
+        self.splash_status_lbl.configure(text="Iniciando instalador...", text_color="#10B981")
         self.after(1000, self._execute_installer)
 
     def _execute_installer(self):
         try:
-            if platform.system() == "Windows":
-                os.startfile(self.download_path)
-            else:
-                # Ubuntu: Usar GDebi o DPKG vía pkexec
-                # Intentamos lanzar el package-installer del sistema
-                subprocess.Popen(["xdg-open", self.download_path])
-            
-            # Cerrar Micyn para permitir la sobrescritura del binario
+            if platform.system() == "Windows": os.startfile(self.download_path)
+            else: subprocess.Popen(["xdg-open", self.download_path])
             self.destroy()
             sys.exit(0)
         except Exception as e:
             print(f"Error ejecutando instalador: {e}")
-            self._finalize()
+            self._finalize_update()
 
-    def _finalize(self):
-        self.status_lbl.configure(text="Iniciando Micyn...", text_color="#4570F7")
+    def _finalize_update(self):
+        print("Finalizing update...")
+        self.splash_status_lbl.configure(text="Iniciando Micyn...", text_color="#4570F7")
         if not self.update_available:
-            self.progress.set(1)
-            self.progress.stop()
+            self.splash_progress.set(1)
+            self.splash_progress.stop()
+        self.after(800, self._transition_to_main_app)
+
+    # --- FASE 3: TRANSICIÓN A MAIN APP ---
+    def _transition_to_main_app(self):
+        print("Transitioning to main app...")
         
-        self.after(800, self._launch_app)
-
-    def _launch_app(self):
-        self.withdraw()
-        main_app = AudioDelayApp()
-        
-        def on_closing():
-            main_app.stop()
-            main_app._cleanup_virtual_cable()
-            main_app.destroy()
-            self.destroy() # Cerramos el proceso completo
-
-        main_app.protocol("WM_DELETE_WINDOW", on_closing)
-        main_app.mainloop()
-
-class AudioDelayApp(ctk.CTk):
-    def __init__(self):
-        super().__init__(className="Micyn")
-
-        self.title("Micyn")
+        # Eliminar el Splash Screen de forma limpia
         try:
-            # Icono de ventana - Usamos PhotoImage para evitar conflictos pyimage
-            icon_path = resource_path("icon.png")
-            if os.path.exists(icon_path):
-                from PIL import Image, ImageTk
-                self._icon_pil = Image.open(icon_path)
-                self._icon_tk = ImageTk.PhotoImage(self._icon_pil)
-                self.iconphoto(True, self._icon_tk)
-        except Exception as e:
-            print("Icono no cargado:", e)
-        try:
-            self.attributes('-zoomed', True)
+            self.splash_window.destroy()
         except:
-            self.state('zoomed')
+            pass
+            
+        # Liberar la ventana principal para interactuar con ella
+        self.geometry("900x700")  # Forzar un tamaño predeterminado válido
+        self.deiconify()          # Volverla a mostrar
+        
+        self.update_idletasks()   # Forzar redibujado de la interfaz base
+        
+        def _maximize():
+            if not self.winfo_exists(): return
+            try:
+                if self.os_system == "Windows": self.state('zoomed')
+                else: self.attributes('-zoomed', True)
+            except: pass
+        self.after(200, _maximize)
 
-        self.configure(fg_color="#09090B")
-
-        # Animacion
+        # Configuración principal de audio
         self.bars = []
-        self.num_bars = 7
         self.current_amplitudes = [0] * self.num_bars
         self.target_amplitudes  = [0] * self.num_bars
-        self.bar_canvas = None
         
         self.bars_out = []
         self.current_amplitudes_out = [0.0] * self.num_bars
         self.target_amplitudes_out  = [0.0] * self.num_bars
-        self.bar_canvas_out = None
 
-        # Audio config
         self.samplerate  = 44100
         self.channels    = 1
         self.chunk_size  = 2048
 
-        # Ring buffer
         self.delay_seconds      = 60
         self.total_buffer_size  = 0
         self.ring_buffer        = None
@@ -291,10 +273,7 @@ class AudioDelayApp(ctk.CTk):
         self.read_ptr           = 0
         self.read_ptr_monitor   = 0
 
-        # Cola para monitor en tiempo real
         self.monitor_queue = queue.Queue(maxsize=20)
-
-        # Streams
         self.is_running           = False
         self.audio_thread         = None
         self.stream_in            = None
@@ -302,17 +281,15 @@ class AudioDelayApp(ctk.CTk):
         self.stream_monitor_rt    = None
         self.stream_monitor_delay = None
 
-        # Linux virtual cable IDs
         self.linux_module_sink_id     = None
         self.linux_module_virtual_id  = None
         self.linux_module_loopback_id = None
         self.linux_module_source_id   = None
-        self.os_system = platform.system()
+        
         self.windows_cable_found = False
         self.windows_cable_index = None
 
         self._cleanup_virtual_cable()
-
         self._create_widgets()
         self._init_virtual_cable()
         self.after(500, self._populate_devices)
@@ -770,6 +747,7 @@ class AudioDelayApp(ctk.CTk):
             self.audio_thread.join(timeout=1.0)
 
         self.start_btn.configure(state="normal", fg_color="#4570F7", text="▶  Iniciar retraso de audio")
+        self.input_combobox.configure(state="readonly")
         self.time_combobox.configure(state="readonly")
         
         # Validar la habilitación del Custom Entry en función del valor actual
@@ -865,7 +843,9 @@ class AudioDelayApp(ctk.CTk):
                     y_pos_o = 30 - h_out // 2
                     self.bars_out[i].configure(height=h_out)
                     self.bars_out[i].place(y=y_pos_o)
-        self.after(16, self._animate_bars)
+        
+        if self.winfo_exists():
+            self.after(16, self._animate_bars)
 
     def _show_manual(self, event=None):
         win = ctk.CTkToplevel(self)
@@ -948,51 +928,67 @@ class AudioDelayApp(ctk.CTk):
     # ─────────────────────────────────────────────
 
     def _create_widgets(self):
-        sub_font   = ctk.CTkFont(family="Google Sans", size=15)
         label_font = ctk.CTkFont(family="Google Sans", size=12, weight="bold")
-        combo_font = ctk.CTkFont(family="Google Sans", size=14)
+        
+        # Frame principal para contener todo tras el splash
+        self.main_frame = ctk.CTkFrame(self, fg_color="#09090B")
+        self.main_frame.pack(fill="both", expand=True)
 
-        def _bind_combo_open(cmb):
-            """Vincula el clic genérico en la caja para abrir el drop-down si no está deshabilitado."""
-            def force_open(e):
-                if cmb.cget("state") != "disabled":
-                    cmb._clicked()
-            cmb.bind("<Button-1>", force_open)
-            if hasattr(cmb, "_entry"):
-                cmb._entry.bind("<Button-1>", force_open)
-
-        # Logo
+        # -- ENCABEZADO --
+        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=80)
+        self.header_frame.pack(fill="x", padx=40, pady=(20, 10))
+        
+        # Logo y Título
+        logo_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        logo_frame.pack(side="left")
+        
         try:
+            logo_path = resource_path("icon.png")
+            if not os.path.exists(logo_path):
+                logo_path = "micyn_logo.jpg"
+            img_pil = Image.open(logo_path).convert("RGBA")
+            img_pil = img_pil.resize((50, 50), Image.LANCZOS)
             from PIL import ImageDraw
-            logo_pil  = Image.open("micyn_logo.jpg").convert("RGBA")
-            logo_size = 100
-            logo_pil  = logo_pil.resize((logo_size, logo_size), Image.LANCZOS)
-            mask = Image.new("L", (logo_size, logo_size), 0)
+            mask = Image.new("L", (50, 50), 0)
             draw = ImageDraw.Draw(mask)
-            draw.rounded_rectangle((0, 0, logo_size, logo_size), radius=20, fill=255)
-            logo_pil.putalpha(mask)
-            logo_ctk = ctk.CTkImage(light_image=logo_pil, dark_image=logo_pil,
-                                    size=(logo_size, logo_size))
-            ctk.CTkLabel(self, text="", image=logo_ctk).pack(pady=(25, 5))
-        except Exception as e:
-            ctk.CTkLabel(self, text="Micyn",
-                         font=ctk.CTkFont(family="Google Sans", size=22, weight="bold"),
-                         text_color="#FFFFFF").pack(pady=(25, 5))
-            print("Logo no encontrado:", e)
+            draw.rounded_rectangle((0, 0, 50, 50), radius=12, fill=255)
+            img_pil.putalpha(mask)
+            self._logo_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=(50, 50))
+            ctk.CTkLabel(logo_frame, text="", image=self._logo_img).pack(side="left", padx=(0, 15))
+        except:
+            pass
 
-        # Creditos
-        desc_frame = ctk.CTkFrame(self, fg_color="transparent")
-        desc_frame.pack(pady=(0, 5))
-        ctk.CTkLabel(desc_frame, text="Retrasar audio - ",
-                     font=sub_font, text_color="#A0AEC0").pack(side="left")
-        lnk = ctk.CTkLabel(desc_frame, text="@facyndev.",
-                            font=sub_font, text_color="#4570F7", cursor="hand2")
-        lnk.pack(side="left")
-        lnk.bind("<Button-1>", lambda e: webbrowser.open("https://www.facyn.xyz"))
+        title_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
+        title_frame.pack(side="left", fill="y", pady=5)
+        # Quitar cursiva
+        ctk.CTkLabel(title_frame, text="MICYN",
+                     font=ctk.CTkFont(family="Google Sans", size=24, weight="bold"),
+                     text_color="#FFFFFF").pack(anchor="w")
+        ctk.CTkLabel(title_frame, text="Retrasa tu audio al tiempo que quieras.",
+                     font=ctk.CTkFont(family="Google Sans", size=13),
+                     text_color="#A0AEC0").pack(anchor="w", pady=(0, 0))
 
+        # Enlaces
+        sub_font = ctk.CTkFont(family="Google Sans", size=13, underline=True)
+        hf = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        hf.pack(side="right", anchor="ne")
+        nl = ctk.CTkLabel(hf, text="♥ by Facyn",
+                          font=sub_font, text_color="#A0AEC0", cursor="hand2")
+        nl.pack(pady=(5, 5))
+        nl.bind("<Enter>",    lambda e: nl.configure(text_color="#FFFFFF"))
+        nl.bind("<Leave>",    lambda e: nl.configure(text_color="#A0AEC0"))
+        nl.bind("<Button-1>", lambda e: webbrowser.open("https://facyn.dev"))
+        
+        hf.pack(pady=(0, 20))
+        hl = ctk.CTkLabel(hf, text="? Manual de uso",
+                          font=sub_font, text_color="#A0AEC0", cursor="hand2")
+        hl.pack()
+        hl.bind("<Enter>",    lambda e: hl.configure(text_color="#FFFFFF"))
+        hl.bind("<Leave>",    lambda e: hl.configure(text_color="#A0AEC0"))
+        hl.bind("<Button-1>", self._show_manual)
         # Aviso de Cable Virtual para Windows
         if self.os_system == "Windows" and not self.windows_cable_found:
-            self.win_warn = ctk.CTkFrame(self, fg_color="#422006", corner_radius=10, height=70)
+            self.win_warn = ctk.CTkFrame(self.main_frame, fg_color="#422006", corner_radius=10, height=70)
             self.win_warn.pack(padx=40, pady=(15, 0), fill="x")
             self.win_warn.pack_propagate(False)
             
@@ -1005,23 +1001,26 @@ class AudioDelayApp(ctk.CTk):
             lnk_dl.pack()
             lnk_dl.bind("<Button-1>", lambda e: webbrowser.open("https://vb-audio.com/Cable/"))
 
-
-        # Manual
-        hf = ctk.CTkFrame(self, fg_color="transparent")
-        hf.pack(pady=(0, 20))
-        hl = ctk.CTkLabel(hf, text="? Manual de uso",
-                          font=sub_font, text_color="#A0AEC0", cursor="hand2")
-        hl.pack()
-        hl.bind("<Enter>",    lambda e: hl.configure(text_color="#FFFFFF"))
-        hl.bind("<Leave>",    lambda e: hl.configure(text_color="#A0AEC0"))
-        hl.bind("<Button-1>", self._show_manual)
+        def _bind_combo_open(cmb):
+            def force_open(event):
+                if cmb.cget("state") != "disabled":
+                    if cmb._dropdown_menu.winfo_ismapped():
+                        cmb._dropdown_menu.place_forget()
+                    else:
+                        cmb._open_dropdown_menu()
+            if hasattr(cmb, "_canvas"):
+                cmb._canvas.bind("<Button-1>", force_open)
+            if hasattr(cmb, "_text_label"):
+                cmb._text_label.bind("<Button-1>", force_open)
+            if hasattr(cmb, "_entry"):
+                cmb._entry.bind("<Button-1>", force_open)
 
         # Entrada
-        ctk.CTkLabel(self, text="MICROFONO (ENTRADA)",
-                     font=label_font, text_color="#A0AEC0").pack(anchor="w", padx=40, pady=(0, 5))
+        ctk.CTkLabel(self.main_frame, text="MICROFONO (ENTRADA)",
+                     font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"), text_color="#A0AEC0").pack(anchor="w", padx=40, pady=(0, 5))
         self.input_combobox = ctk.CTkComboBox(
-            self, width=280, height=45, corner_radius=10,
-            font=combo_font, dropdown_font=combo_font,
+            self.main_frame, width=280, height=45, corner_radius=10,
+            font=ctk.CTkFont(family="Google Sans", size=14), dropdown_font=ctk.CTkFont(family="Google Sans", size=14),
             fg_color="#18181A", border_width=1, border_color="#27272A",
             button_color="#18181A", button_hover_color="#27272A",
             dropdown_fg_color="#18181A", text_color="#FFFFFF", state="readonly")
@@ -1029,11 +1028,11 @@ class AudioDelayApp(ctk.CTk):
         _bind_combo_open(self.input_combobox)
 
         # Tiempo
-        ctk.CTkLabel(self, text="TIEMPO DE RETRASO",
-                     font=label_font, text_color="#A0AEC0").pack(anchor="w", padx=40, pady=(0, 5))
+        ctk.CTkLabel(self.main_frame, text="TIEMPO DE RETRASO",
+                     font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"), text_color="#A0AEC0").pack(anchor="w", padx=40, pady=(0, 5))
         self.time_combobox = ctk.CTkComboBox(
-            self, width=280, height=45, corner_radius=10,
-            font=combo_font, dropdown_font=combo_font,
+            self.main_frame, width=280, height=45, corner_radius=10,
+            font=ctk.CTkFont(family="Google Sans", size=14), dropdown_font=ctk.CTkFont(family="Google Sans", size=14),
             fg_color="#18181A", border_width=1, border_color="#27272A",
             button_color="#18181A", button_hover_color="#27272A",
             values=["30 Segundos", "1 Minuto", "2 Minutos", "5 Minutos", "Personalizado (Segundos)"],
@@ -1044,17 +1043,17 @@ class AudioDelayApp(ctk.CTk):
         _bind_combo_open(self.time_combobox)
 
         self.custom_time_entry = ctk.CTkEntry(
-            self, width=280, height=40, corner_radius=10,
-            font=combo_font, placeholder_text="Ej: 15 (segundos)",
+            self.main_frame, width=280, height=40, corner_radius=10,
+            font=ctk.CTkFont(family="Google Sans", size=14), placeholder_text="Ej: 15 (segundos)",
             border_color="#27272A")
         self.custom_time_entry.pack(padx=40, pady=(0, 15), fill="x")
         self.custom_time_entry.configure(state="disabled", fg_color="#09090B")
 
         # Monitores
-        ctk.CTkLabel(self, text="ESCUCHAR MI PROPIA VOZ (solo auriculares, no afecta la salida Micyn)",
-                     font=label_font, text_color="#A0AEC0").pack(anchor="w", padx=40, pady=(0, 5))
+        ctk.CTkLabel(self.main_frame, text="ESCUCHAR MI PROPIA VOZ (solo auriculares, no afecta la salida Micyn)",
+                     font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"), text_color="#A0AEC0").pack(anchor="w", padx=40, pady=(0, 5))
 
-        mc = ctk.CTkFrame(self, fg_color="transparent")
+        mc = ctk.CTkFrame(self.main_frame, height=60, fg_color="transparent")
         mc.pack(padx=40, pady=(0, 20), fill="x")
 
         mf1 = ctk.CTkFrame(mc, height=60, fg_color="#18181A", corner_radius=12)
@@ -1081,8 +1080,8 @@ class AudioDelayApp(ctk.CTk):
             fg_color="#27272A", switch_width=36, switch_height=18)
         self.monitor_delay_chk.pack(expand=True, padx=10, pady=10)
 
-        # Vumetros Container (Lado a Lado)
-        vumeters_container = ctk.CTkFrame(self, fg_color="transparent")
+        # Medidores (VUs) en layout horizontal ocupando el espacio restante
+        vumeters_container = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         vumeters_container.pack(padx=40, pady=(0, 20), fill="x")
 
         # Vumetro: Entrada
@@ -1136,22 +1135,22 @@ class AudioDelayApp(ctk.CTk):
         # Botones
         btn_font = ctk.CTkFont(family="Google Sans", size=17, weight="bold")
         self.start_btn = ctk.CTkButton(
-            self, text="▶  Iniciar retraso de audio",
+            self.main_frame, text="▶  Iniciar retraso de audio",
             font=btn_font, width=280, height=50, corner_radius=25,
             fg_color="#4570F7", hover_color="#2F52CC", text_color="#FFFFFF",
             command=self.start)
         self.start_btn.pack(padx=40, pady=(0, 15), fill="x")
 
         self.stop_btn = ctk.CTkButton(
-            self, text="■  Detener",
+            self.main_frame, text="■  Detener",
             font=btn_font, width=280, height=50, corner_radius=25,
             fg_color="#27272A", hover_color="#E0E0E0", text_color="#7A8084",
             state="disabled", command=self.stop)
         self.stop_btn.pack(padx=40, pady=(0, 30), fill="x")
 
         # Estado
-        ctk.CTkFrame(self, height=1, fg_color="#27272A").pack(pady=(10, 20), fill="x", padx=40)
-        self.status_frame = ctk.CTkFrame(self, fg_color="#09090B", corner_radius=15, height=50)
+        ctk.CTkFrame(self.main_frame, height=1, fg_color="#27272A").pack(pady=(10, 20), fill="x", padx=40)
+        self.status_frame = ctk.CTkFrame(self.main_frame, fg_color="#09090B", corner_radius=15, height=50)
         self.status_frame.pack(pady=(0, 10))
         self.status_dot = ctk.CTkLabel(
             self.status_frame, text="●", text_color="#A0AEC0",
@@ -1163,7 +1162,48 @@ class AudioDelayApp(ctk.CTk):
             text_color="#A0AEC0")
         self.status_lbl.pack(side="left", padx=(0, 25))
 
+        print("Widgets creados correctamente.")
+
+
+_app_lock_file = None
+
+def _check_single_instance():
+    """Create a lock file to ensure only one instance of the app is running."""
+    global _app_lock_file
+    lock_file = os.path.join(tempfile.gettempdir(), 'micyn_app.lock')
+    
+    if platform.system() == "Windows":
+        try:
+            import msvcrt
+            # Mantenemos el archivo abierto durante la ejecución
+            _app_lock_file = open(lock_file, 'w')
+            msvcrt.locking(_app_lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except (IOError, OSError):
+            return False
+    else:
+        try:
+            import fcntl
+            _app_lock_file = open(lock_file, 'w')
+            fcntl.flock(_app_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except (IOError, OSError):
+            return False
 
 if __name__ == "__main__":
-    splash = UpdaterSplash()
-    splash.mainloop()
+    if not _check_single_instance():
+        import tkinter as tk
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showwarning("Micyn ya está abierto", "La aplicación ya se encuentra en ejecución.")
+        sys.exit(0)
+        
+    main_app = AudioDelayApp()
+    
+    def on_closing():
+        main_app.stop()
+        main_app._cleanup_virtual_cable()
+        main_app.destroy()
+
+    main_app.protocol("WM_DELETE_WINDOW", on_closing)
+    main_app.mainloop()
