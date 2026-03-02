@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo Buscando version en main.py...
-for /f "tokens=2 delims== " %%a in ('findstr "__version__" main.py') do set VERSION=%%~a
+for /f "tokens=2 delims== " %%a in ('findstr /B "__version__" main.py') do set VERSION=%%~a
 if "%VERSION%"=="" set VERSION=1.0.0
 
 set APP_NAME=micyn
