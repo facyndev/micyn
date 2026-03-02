@@ -18,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -343,11 +343,13 @@ class AudioDelayApp(ctk.CTk):
             try:
                 devices = sd.query_devices()
                 for i, d in enumerate(devices):
-                    if d['max_output_channels'] > 0 and ("CABLE Input" in d['name'] or "VB-Audio" in d['name']):
-                        self.windows_cable_found = True
-                        self.windows_cable_index = i
-                        print(f"Cable Virtual detectado en Windows (Index {i}): {d['name']}")
-                        break
+                    if d['max_output_channels'] > 0:
+                        name_lower = d['name'].lower()
+                        if any(kw in name_lower for kw in ["cable", "virtual", "vb-audio", "voicemeeter"]):
+                            self.windows_cable_found = True
+                            self.windows_cable_index = i
+                            print(f"Cable Virtual detectado en Windows (Index {i}): {d['name']}")
+                            break
             except:
                 pass
 
