@@ -14,7 +14,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.0.9"
+__version__ = "1.0.10"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -222,6 +222,8 @@ class AudioDelayApp(ctk.CTk):
         self.linux_module_loopback_id = None
         self.linux_module_source_id   = None
         self.os_system = platform.system()
+        self.windows_cable_found = False
+        self.windows_cable_index = None
 
         self._cleanup_virtual_cable()
 
@@ -272,6 +274,19 @@ class AudioDelayApp(ctk.CTk):
                 print("PulseAudio/PipeWire no disponible.")
             except Exception as e:
                 print(f"Error creando cables virtuales: {e}")
+        
+        elif self.os_system == 'Windows':
+            # En Windows no podemos crear drivers al vuelo, buscamos si tiene VB-Cable
+            try:
+                devices = sd.query_devices()
+                for i, d in enumerate(devices):
+                    if d['max_output_channels'] > 0 and ("CABLE Input" in d['name'] or "VB-Audio" in d['name']):
+                        self.windows_cable_found = True
+                        self.windows_cable_index = i
+                        print(f"Cable Virtual detectado en Windows (Index {i}): {d['name']}")
+                        break
+            except:
+                pass
 
     def _cleanup_virtual_cable(self):
         if self.os_system == 'Linux':
@@ -479,12 +494,18 @@ class AudioDelayApp(ctk.CTk):
                 self.after(0, self.stop)
                 return
         else:
-            for d in self.outputs:
-                if "Virtual" in d['name'] or "CABLE" in d['name']:
-                    out_device = d['original_index']
-                    break
+            # Priorizar VB-Cable si lo encontramos
+            if self.windows_cable_index is not None:
+                out_device = self.windows_cable_index
+            else:
+                for d in self.outputs:
+                    if "Virtual" in d['name'] or "CABLE" in d['name']:
+                        out_device = d['original_index']
+                        break
+            
             if out_device is None and self.outputs:
                 out_device = self.outputs[0]['original_index']
+            
             if out_device is None:
                 print("Error: No se encontro dispositivo de salida.")
                 self.after(0, self.stop)
@@ -882,6 +903,21 @@ class AudioDelayApp(ctk.CTk):
                             font=sub_font, text_color="#4570F7", cursor="hand2")
         lnk.pack(side="left")
         lnk.bind("<Button-1>", lambda e: webbrowser.open("https://www.facyn.xyz"))
+
+        # Aviso de Cable Virtual para Windows
+        if self.os_system == "Windows" and not self.windows_cable_found:
+            self.win_warn = ctk.CTkFrame(self, fg_color="#422006", corner_radius=10, height=70)
+            self.win_warn.pack(padx=40, pady=(15, 0), fill="x")
+            self.win_warn.pack_propagate(False)
+            
+            warn_msg = "⚠️ CABE VIRTUAL NO DETECTADO\nNecesitas VB-Cable para usarlo en OBS."
+            ctk.CTkLabel(self.win_warn, text=warn_msg, font=ctk.CTkFont(size=11, weight="bold"), 
+                         text_color="#FBBF24").pack(pady=(10, 5))
+            
+            lnk_dl = ctk.CTkLabel(self.win_warn, text="Descargar VB-Cable aquí", font=ctk.CTkFont(size=10, underline=True),
+                                  text_color="#FBBF24", cursor="hand2")
+            lnk_dl.pack()
+            lnk_dl.bind("<Button-1>", lambda e: webbrowser.open("https://vb-audio.com/Cable/"))
 
 
         # Manual
