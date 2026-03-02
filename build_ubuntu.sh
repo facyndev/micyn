@@ -26,8 +26,17 @@ if [ ! -d ".venv" ]; then
 fi
 ./.venv/bin/pip install -r requirements.txt
 
+# Generar iconos si no existen
+if [ ! -f "icon.png" ]; then
+    echo "Generando icon.png..."
+    ./.venv/bin/python3 -c "from PIL import Image; img = Image.open('micyn_logo.jpg'); img.save('icon.png')"
+fi
+
 echo "Compilando binario con PyInstaller..."
-./.venv/bin/pyinstaller --noconfirm --onedir --windowed --name "$APP_NAME" "main.py"
+./.venv/bin/pyinstaller --noconfirm --onedir --windowed \
+    --add-data "icon.png:." \
+    --icon "icon.png" \
+    --name "$APP_NAME" "main.py"
 
 echo "Armando estructura de paquete Debian..."
 mkdir -p "$DEB_DIR/opt/$APP_NAME"

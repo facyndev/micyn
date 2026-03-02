@@ -8,9 +8,18 @@ import time
 import platform
 import subprocess
 import os
+import sys
 from PIL import Image, ImageTk
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -20,6 +29,16 @@ class AudioDelayApp(ctk.CTk):
         super().__init__()
 
         self.title("Micyn")
+        try:
+            # Icono de ventana
+            icon_path = resource_path("icon.png")
+            if os.path.exists(icon_path):
+                pil_img = Image.open(icon_path)
+                pil_img.thumbnail((256, 256))
+                icon_img = ImageTk.PhotoImage(pil_img)
+                self.iconphoto(True, icon_img)
+        except Exception as e:
+            print("Logo no cargado como icono:", e)
         try:
             self.attributes('-zoomed', True)
         except:
@@ -72,14 +91,6 @@ class AudioDelayApp(ctk.CTk):
         self.os_system = platform.system()
 
         self._cleanup_virtual_cable()
-
-        try:
-            pil_img  = Image.open("micyn_logo.jpg")
-            pil_img.thumbnail((256, 256))
-            icon_img = ImageTk.PhotoImage(pil_img)
-            self.iconphoto(True, icon_img)
-        except Exception as e:
-            print("Logo no cargado como icono:", e)
 
         self._create_widgets()
         self._init_virtual_cable()
@@ -247,27 +258,42 @@ class AudioDelayApp(ctk.CTk):
             ignore_ids = []
             
         moved_ids = []
+        env = os.environ.copy()
+        env['LANG'] = 'C'  # Forzar salida en inglés para un parseo fiable
+        
         try:
             pid = str(os.getpid())
+            # Detectar nombre del binario actual (micyn o python3)
+            current_bin = os.path.basename(sys.executable).lower()
+            
             res = subprocess.run(['pactl', 'list', 'sink-inputs'],
-                                 stdout=subprocess.PIPE, text=True)
+                                 stdout=subprocess.PIPE, text=True, env=env)
 
-            # Dividir en bloques por sink-input
+            # Dividir en bloques por sink-input (Soporta español e inglés por LANG=C)
             import re
-            blocks = re.split(r'\n(?=Entrada del destino #|Sink Input #)', res.stdout)
+            blocks = re.split(r'\n(?=Sink Input #|Entrada del destino #)', res.stdout)
 
             for block in blocks:
-                # Comprobar si el bloque pertenece al proceso actual (PID oFallback nombre python)
-                if (f'application.process.id = "{pid}"' in block or 
-                    ('python3' in block and 'mono' in block and '44100' in block)):
-                    
-                    m = re.search(r'(?:Entrada del destino|Sink Input) #(\d+)', block)
+                # Criterios de coincidencia: 
+                # 1. PID exacto (Detección primaria)
+                # 2. Nombre del binario (Detección secundaria para PyInstaller)
+                # 3. Propiedades de audio (Detección de seguridad)
+                
+                is_my_process = (
+                    f'application.process.id = "{pid}"' in block or 
+                    f'application.name = "{current_bin}"' in block or
+                    (current_bin in block.lower() and ('44100' in block or 'mono' in block)) or
+                    ('python3' in block.lower() and ('44100' in block or 'mono' in block))
+                )
+
+                if is_my_process:
+                    m = re.search(r'(?:Sink Input|Entrada del destino) #(\d+)', block)
                     if m:
                         sink_input_id = m.group(1)
                         if sink_input_id not in ignore_ids:
                             result = subprocess.run(
                                 ['pactl', 'move-sink-input', sink_input_id, target_sink],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
                             
                             if result.returncode == 0:
                                 print(f"  OK: sink-input {sink_input_id} → {target_sink}")
@@ -276,7 +302,7 @@ class AudioDelayApp(ctk.CTk):
                                 print(f"  ERROR moviendo {sink_input_id}: {result.stderr.strip()}")
 
             if not moved_ids:
-                print(f"ADVERTENCIA: No se movieron sink-inputs hacia {target_sink}.")
+                print(f"ADVERTENCIA: No se movieron sink-inputs hacia {target_sink}. (PID: {pid}, Bin: {current_bin})")
 
         except Exception as e:
             print(f"Error en _move_my_sink_inputs: {e}")

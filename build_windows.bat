@@ -21,8 +21,17 @@ if not exist ".venv" (
 )
 .\.venv\Scripts\pip install -r requirements.txt
 
+:: Generar iconos si no existen
+if not exist "icon.ico" (
+    echo Generando icon.ico e icon.png...
+    .\.venv\Scripts\python -c "from PIL import Image; img = Image.open('micyn_logo.jpg'); img.save('icon.png'); img.save('icon.ico', sizes=[(256,256)])"
+)
+
 :: Ejecutar el PyInstaller del entorno de Windows (--onefile para portabilidad)
-.\.venv\Scripts\pyinstaller --noconfirm --onefile --windowed --name "%APP_NAME%" "main.py"
+.\.venv\Scripts\pyinstaller --noconfirm --onefile --windowed ^
+    --add-data "icon.png;." ^
+    --icon "icon.ico" ^
+    --name "%APP_NAME%" "main.py"
 
 if exist "dist\%APP_NAME%.exe" (
     echo.
