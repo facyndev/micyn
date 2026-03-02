@@ -10,9 +10,9 @@ from constants import APP_NAME, COLOR_BG, DELAY_OPTIONS
 from utils.devices import populate_devices, get_sink_device_index
 from utils.resources import resource_path
 
-from platform.base import PlatformAudio
-from platform.linux import LinuxAudio
-from platform.windows import WindowsAudio
+from backends.base import PlatformAudio
+from backends.linux import LinuxAudio
+from backends.windows import WindowsAudio
 
 from audio.loop import start_audio_loop
 from ui.splash import SplashScreen
