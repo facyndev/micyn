@@ -18,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.2.2"
+__version__ = "1.2.4"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -358,11 +358,14 @@ class AudioDelayApp(ctk.CTk):
         
         elif self.os_system == 'Windows':
             # En Windows no podemos crear drivers al vuelo, buscamos si tiene VB-Cable
+            self.windows_cable_found = False
+            self.windows_cable_index = None
             try:
                 devices = sd.query_devices()
                 for i, d in enumerate(devices):
                     if d['max_output_channels'] > 0:
                         name_lower = d['name'].lower()
+                        # Detección más estricta o flexible según la marca del driver
                         if any(kw in name_lower for kw in ["cable", "virtual", "vb-audio", "voicemeeter"]):
                             self.windows_cable_found = True
                             self.windows_cable_index = i
@@ -1006,20 +1009,64 @@ class AudioDelayApp(ctk.CTk):
         hl.bind("<Enter>",    lambda e: hl.configure(text_color="#FFFFFF"))
         hl.bind("<Leave>",    lambda e: hl.configure(text_color="#A0AEC0"))
         hl.bind("<Button-1>", self._show_manual)
-        # Aviso de Cable Virtual para Windows
+        
+        # --- BLOQUEO POR FALTA DE CABLE VIRTUAL (WINDOWS ONLY) ---
         if self.os_system == "Windows" and not self.windows_cable_found:
-            self.win_warn = ctk.CTkFrame(self.main_frame, fg_color="#422006", corner_radius=10, height=70)
-            self.win_warn.pack(padx=40, pady=(15, 0), fill="x")
-            self.win_warn.pack_propagate(False)
-            
-            warn_msg = "⚠️ CABE VIRTUAL NO DETECTADO\nNecesitas VB-Cable para usarlo en OBS."
-            ctk.CTkLabel(self.win_warn, text=warn_msg, font=ctk.CTkFont(size=11, weight="bold"), 
-                         text_color="#FBBF24").pack(pady=(10, 5))
-            
-            lnk_dl = ctk.CTkLabel(self.win_warn, text="Descargar VB-Cable aquí", font=ctk.CTkFont(size=10, underline=True),
-                                  text_color="#FBBF24", cursor="hand2")
-            lnk_dl.pack()
-            lnk_dl.bind("<Button-1>", lambda e: webbrowser.open("https://vb-audio.com/Cable/"))
+            self._render_windows_blocking_ui()
+            return
+
+    def _render_windows_blocking_ui(self):
+        """Muestra una pantalla de bloqueo si falta el controlador obligatorio."""
+        self.blocking_frame = ctk.CTkFrame(self.main_frame, fg_color="#09090B")
+        self.blocking_frame.pack(fill="both", expand=True)
+
+        content = ctk.CTkFrame(self.blocking_frame, fg_color="transparent")
+        content.place(relx=0.5, rely=0.45, anchor="center")
+
+        # Icono de advertencia grande
+        try:
+            from PIL import Image, ImageTk
+            warn_path = resource_path("icon.png") # Reutilizamos logo para el splash o icon
+            img = Image.open(warn_path).convert("RGBA")
+            img = img.resize((100, 100), Image.LANCZOS)
+            self._warn_img = ctk.CTkImage(light_image=img, dark_image=img, size=(100, 100))
+            ctk.CTkLabel(content, text="", image=self._warn_img).pack(pady=(0, 20))
+        except:
+            ctk.CTkLabel(content, text="⚠️", font=("Google Sans", 64)).pack(pady=(0, 20))
+
+        ctk.CTkLabel(content, text="ACCESO BLOQUEADO", 
+                     font=ctk.CTkFont(family="Google Sans", size=24, weight="bold"),
+                     text_color="#FF4B4B").pack()
+        
+        ctk.CTkLabel(content, text="No se ha detectado el controlador de audio VB-Cable.\nEste componente es OBLIGATORIO para que Micyn funcione.", 
+                     font=ctk.CTkFont(family="Google Sans", size=14),
+                     text_color="#A0AEC0", justify="center").pack(pady=15)
+
+        btn_f = ctk.CTkFont(family="Google Sans", size=14, weight="bold")
+        
+        ctk.CTkButton(content, text="📥 Descargar VB-Cable (Gratis)", width=280, height=45, corner_radius=22,
+                      fg_color="#4570F7", hover_color="#2F52CC", font=btn_f,
+                      command=lambda: webbrowser.open("https://vb-audio.com/Cable/")).pack(pady=5)
+        
+        ctk.CTkButton(content, text="🔄 Reintentar detección", width=280, height=45, corner_radius=22,
+                      fg_color="#27272A", hover_color="#3F3F46", text_color="#FFFFFF", font=btn_f,
+                      command=self._recheck_cable_windows).pack(pady=5)
+
+    def _recheck_cable_windows(self):
+        """Reinicia la detección y reconstruye la interfaz si se encuentra el cable."""
+        sd._terminate() # Forzar refresco de la lista de dispositivos de sounddevice
+        sd._initialize()
+        self._init_virtual_cable()
+        
+        if self.windows_cable_found:
+            # Limpiar frame de bloqueo y cargar widgets normales
+            for widget in self.main_frame.winfo_children():
+                widget.destroy()
+            self._create_widgets()
+            self._populate_devices()
+        else:
+            messagebox.showwarning("Micyn", "Todavía no se detecta el cable. Por favor, instálalo y asegúrate de haber reiniciado si el instalador lo solicitó.")
+
 
         def _bind_combo_open(cmb):
             def force_open(event):
