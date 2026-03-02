@@ -18,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.2.8"
+__version__ = "1.2.9"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -954,71 +954,6 @@ class AudioDelayApp(ctk.CTk):
     #   WIDGETS
     # ─────────────────────────────────────────────
 
-    def _create_widgets(self):
-        label_font = ctk.CTkFont(family="Google Sans", size=12, weight="bold")
-        
-        # Frame principal para contener todo tras el splash
-        self.main_frame = ctk.CTkFrame(self, fg_color="#09090B")
-        self.main_frame.pack(fill="both", expand=True)
-
-        # -- ENCABEZADO --
-        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=80)
-        self.header_frame.pack(fill="x", padx=40, pady=(20, 10))
-        
-        # Logo y Título
-        logo_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        logo_frame.pack(side="left")
-        
-        try:
-            logo_path = resource_path("icon.png")
-            if not os.path.exists(logo_path):
-                logo_path = "micyn_logo.jpg"
-            img_pil = Image.open(logo_path).convert("RGBA")
-            img_pil = img_pil.resize((50, 50), Image.LANCZOS)
-            from PIL import ImageDraw
-            mask = Image.new("L", (50, 50), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.rounded_rectangle((0, 0, 50, 50), radius=12, fill=255)
-            img_pil.putalpha(mask)
-            self._logo_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=(50, 50))
-            ctk.CTkLabel(logo_frame, text="", image=self._logo_img).pack(side="left", padx=(0, 15))
-        except:
-            pass
-
-        title_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
-        title_frame.pack(side="left", fill="y", pady=5)
-        # Quitar cursiva
-        ctk.CTkLabel(title_frame, text="MICYN",
-                     font=ctk.CTkFont(family="Google Sans", size=24, weight="bold"),
-                     text_color="#FFFFFF").pack(anchor="w")
-        ctk.CTkLabel(title_frame, text="Retrasa tu audio al tiempo que quieras.",
-                     font=ctk.CTkFont(family="Google Sans", size=13),
-                     text_color="#A0AEC0").pack(anchor="w", pady=(0, 0))
-
-        # Enlaces
-        sub_font = ctk.CTkFont(family="Google Sans", size=13, underline=True)
-        hf = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        hf.pack(side="right", anchor="ne")
-        nl = ctk.CTkLabel(hf, text="♥ by Facyn",
-                          font=sub_font, text_color="#A0AEC0", cursor="hand2")
-        nl.pack(pady=(5, 5))
-        nl.bind("<Enter>",    lambda e: nl.configure(text_color="#FFFFFF"))
-        nl.bind("<Leave>",    lambda e: nl.configure(text_color="#A0AEC0"))
-        nl.bind("<Button-1>", lambda e: webbrowser.open("https://facyn.dev"))
-        
-        hf.pack(pady=(0, 20))
-        hl = ctk.CTkLabel(hf, text="? Manual de uso",
-                          font=sub_font, text_color="#A0AEC0", cursor="hand2")
-        hl.pack()
-        hl.bind("<Enter>",    lambda e: hl.configure(text_color="#FFFFFF"))
-        hl.bind("<Leave>",    lambda e: hl.configure(text_color="#A0AEC0"))
-        hl.bind("<Button-1>", self._show_manual)
-        
-        # --- BLOQUEO POR FALTA DE CABLE VIRTUAL (WINDOWS ONLY) ---
-        if self.os_system == "Windows" and not self.windows_cable_found:
-            self._render_windows_blocking_ui()
-            return
-
     def _render_windows_blocking_ui(self):
         """Muestra una pantalla de bloqueo si falta el controlador obligatorio."""
         self.blocking_frame = ctk.CTkFrame(self.main_frame, fg_color="#09090B")
@@ -1092,6 +1027,70 @@ class AudioDelayApp(ctk.CTk):
             print(f"Error reiniciando: {e}")
             os._exit(1)
 
+    def _create_widgets(self):
+        label_font = ctk.CTkFont(family="Google Sans", size=12, weight="bold")
+        
+        # Frame principal para contener todo tras el splash
+        self.main_frame = ctk.CTkFrame(self, fg_color="#09090B")
+        self.main_frame.pack(fill="both", expand=True)
+
+        # -- ENCABEZADO --
+        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=80)
+        self.header_frame.pack(fill="x", padx=40, pady=(20, 10))
+        
+        # Logo y Título
+        logo_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        logo_frame.pack(side="left")
+        
+        try:
+            logo_path = resource_path("icon.png")
+            if not os.path.exists(logo_path):
+                logo_path = "micyn_logo.jpg"
+            img_pil = Image.open(logo_path).convert("RGBA")
+            img_pil = img_pil.resize((50, 50), Image.LANCZOS)
+            from PIL import ImageDraw
+            mask = Image.new("L", (50, 50), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle((0, 0, 50, 50), radius=12, fill=255)
+            img_pil.putalpha(mask)
+            self._logo_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=(50, 50))
+            ctk.CTkLabel(logo_frame, text="", image=self._logo_img).pack(side="left", padx=(0, 15))
+        except:
+            pass
+
+        title_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
+        title_frame.pack(side="left", fill="y", pady=5)
+        # Quitar cursiva
+        ctk.CTkLabel(title_frame, text="MICYN",
+                     font=ctk.CTkFont(family="Google Sans", size=24, weight="bold"),
+                     text_color="#FFFFFF").pack(anchor="w")
+        ctk.CTkLabel(title_frame, text="Retrasa tu audio al tiempo que quieras.",
+                     font=ctk.CTkFont(family="Google Sans", size=13),
+                     text_color="#A0AEC0").pack(anchor="w", pady=(0, 0))
+
+        # Enlaces
+        sub_font = ctk.CTkFont(family="Google Sans", size=13, underline=True)
+        hf = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        hf.pack(side="right", anchor="ne")
+        nl = ctk.CTkLabel(hf, text="♥ by Facyn",
+                          font=sub_font, text_color="#A0AEC0", cursor="hand2")
+        nl.pack(pady=(5, 5))
+        nl.bind("<Enter>",    lambda e: nl.configure(text_color="#FFFFFF"))
+        nl.bind("<Leave>",    lambda e: nl.configure(text_color="#A0AEC0"))
+        nl.bind("<Button-1>", lambda e: webbrowser.open("https://facyn.dev"))
+        
+        hf.pack(pady=(0, 20))
+        hl = ctk.CTkLabel(hf, text="? Manual de uso",
+                          font=sub_font, text_color="#A0AEC0", cursor="hand2")
+        hl.pack()
+        hl.bind("<Enter>",    lambda e: hl.configure(text_color="#FFFFFF"))
+        hl.bind("<Leave>",    lambda e: hl.configure(text_color="#A0AEC0"))
+        hl.bind("<Button-1>", self._show_manual)
+        
+        # --- BLOQUEO POR FALTA DE CABLE VIRTUAL (WINDOWS ONLY) ---
+        if self.os_system == "Windows" and not self.windows_cable_found:
+            self._render_windows_blocking_ui()
+            return
 
         def _bind_combo_open(cmb):
             def force_open(event):
