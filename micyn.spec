@@ -45,7 +45,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     # Excluir el módulo local (ya no existe, pero por seguridad)
-    excludes=['platform'],
+    excludes=[],
     noarchive=False,
 )
 
