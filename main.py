@@ -14,7 +14,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.0.10"
+__version__ = "1.1.0"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -93,6 +93,8 @@ class UpdaterSplash(ctk.CTk):
 
         self.update_available = False
         self.latest_v = None
+        self.asset_url = None
+        self.download_path = None
         
         # Iniciar chequeo
         self.after(1000, self._check)
@@ -110,31 +112,115 @@ class UpdaterSplash(ctk.CTk):
                 latest_version = data.get("tag_name", "").replace("v", "")
                 
                 if latest_version and latest_version != __version__:
+                    # Buscar el asset adecuado para el SO
+                    target_ext = ".exe" if platform.system() == "Windows" else ".deb"
+                    assets = data.get("assets", [])
+                    for asset in assets:
+                        if asset.get("name", "").lower().endswith(target_ext):
+                            self.asset_url = asset.get("browser_download_url")
+                            break
+                    
                     self.latest_v = latest_version
                     self.update_available = True
                     self.after(0, self._on_update_found)
                 else:
                     self.after(0, self._finalize)
         except:
-            # Sin internet o error, pasamos directo a la app
             self.after(0, self._finalize)
+
+    def _get_button_font(self):
+        return ctk.CTkFont(family="Google Sans", size=15, weight="bold")
 
     def _on_update_found(self):
         self.progress.stop()
         self.progress.pack_forget()
-        self.status_lbl.configure(text=f"¡Nueva versión disponible: v{self.latest_v}!", text_color="#F59E0B")
+        self.status_lbl.configure(text=f"¡NUEVA VERSIÓN: v{self.latest_v}!", text_color="#F59E0B", 
+                                  font=("Google Sans", 16, "bold"))
         
-        self.btn_frame.pack(pady=20)
+        # Ajustamos el tamaño de la ventana para los botones estilo Premium
+        self.geometry("400x420")
         
-        ctk.CTkButton(self.btn_frame, text="Descargar ahora", width=140, height=35,
+        btn_font = self._get_button_font()
+        
+        # Botón Actualizar (Estilo Principal)
+        ctk.CTkButton(self, text="⚡ Actualizar ahora", width=280, height=50, corner_radius=25,
                       fg_color="#F59E0B", hover_color="#D97706", text_color="#000000",
-                      font=("Google Sans", 12, "bold"),
-                      command=lambda: webbrowser.open("https://github.com/facyndev/micyn/releases")).pack(side="left", padx=5)
+                      font=btn_font,
+                      command=self._start_download).pack(pady=(20, 10))
         
-        ctk.CTkButton(self.btn_frame, text="Saltar", width=80, height=35,
-                      fg_color="#27272A", hover_color="#3F3F46",
-                      font=("Google Sans", 12),
-                      command=self._finalize).pack(side="left", padx=5)
+        # Botón Omitir (Estilo Secundario)
+        ctk.CTkButton(self, text="Omitir por ahora", width=280, height=50, corner_radius=25,
+                      fg_color="#27272A", hover_color="#3F3F46", text_color="#7A8084",
+                      font=btn_font,
+                      command=self._finalize).pack(pady=5)
+
+    def _start_download(self):
+        if not self.asset_url:
+            # Si no hay asset directo, vamos a github como fallback
+            webbrowser.open("https://github.com/facyndev/micyn/releases")
+            self._finalize()
+            return
+
+        # Limpiar UI para mostrar barra de descarga
+        for widget in self.winfo_children():
+            if isinstance(widget, ctk.CTkButton):
+                widget.pack_forget()
+        
+        self.status_lbl.configure(text="Descargando actualización...", text_color="#4570F7")
+        self.progress.set(0)
+        self.progress.pack(pady=20)
+        
+        thread = threading.Thread(target=self._run_download, daemon=True)
+        thread.start()
+
+    def _run_download(self):
+        try:
+            filename = self.asset_url.split("/")[-1]
+            temp_dir = os.environ.get("TEMP") or os.environ.get("TMPDIR") or "/tmp"
+            self.download_path = os.path.join(temp_dir, filename)
+            
+            # Descarga con progreso
+            req = urllib.request.Request(self.asset_url, headers={'User-Agent': 'Micyn-Updater'})
+            with urllib.request.urlopen(req) as response:
+                total_size = int(response.info().get('Content-Length', 0))
+                downloaded = 0
+                block_size = 1024 * 64 # 64KB
+                
+                with open(self.download_path, 'wb') as f:
+                    while True:
+                        buffer = response.read(block_size)
+                        if not buffer:
+                            break
+                        downloaded += len(buffer)
+                        f.write(buffer)
+                        if total_size > 0:
+                            p = downloaded / total_size
+                            self.after(0, lambda val=p: self.progress.set(val))
+            
+            self.after(0, self._install_and_exit)
+        except Exception as e:
+            print(f"Error descargando actualización: {e}")
+            self.after(0, self._finalize)
+
+    def _install_and_exit(self):
+        self.status_lbl.configure(text="Iniciando instalador...", text_color="#10B981")
+        self.after(1000, self._execute_installer)
+
+    def _execute_installer(self):
+        try:
+            if platform.system() == "Windows":
+                os.startfile(self.download_path)
+            else:
+                # Ubuntu: Usar GDebi o DPKG vía pkexec
+                # Intentamos lanzar el package-installer del sistema
+                subprocess.Popen(["xdg-open", self.download_path])
+            
+            # Cerrar Micyn para permitir la sobrescritura del binario
+            self.destroy()
+            sys.exit(0)
+        except Exception as e:
+            print(f"Error ejecutando instalador: {e}")
+            self._finalize()
 
     def _finalize(self):
         self.status_lbl.configure(text="Iniciando Micyn...", text_color="#4570F7")
