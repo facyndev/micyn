@@ -18,7 +18,7 @@ import json
 import webbrowser
 from PIL import Image, ImageTk
 
-__version__ = "1.2.7"
+__version__ = "1.2.8"
 
 # Identidad de la aplicación (Windows Taskbar Icon Fix)
 if platform.system() == "Windows":
@@ -932,18 +932,20 @@ class AudioDelayApp(ctk.CTk):
                 if d['max_output_channels'] > 0: self.outputs.append(d)
 
             in_names = [self._clean_device_name(d['name']) for d in self.inputs]
-            self.input_combobox.configure(values=in_names)
+            
+            if hasattr(self, 'input_combobox'):
+                self.input_combobox.configure(values=in_names)
 
-            default_in  = sd.default.device[0]
-            devices_all = sd.query_devices()
-            for i, dev in enumerate(self.inputs):
-                if dev['original_index'] == default_in or \
-                   dev['name'] == devices_all[default_in]['name']:
-                    self.input_combobox.set(in_names[i])
-                    break
-            else:
-                if self.inputs:
-                    self.input_combobox.set(in_names[0])
+                default_in  = sd.default.device[0]
+                devices_all = sd.query_devices()
+                for i, dev in enumerate(self.inputs):
+                    if dev['original_index'] == default_in or \
+                       dev['name'] == devices_all[default_in]['name']:
+                        self.input_combobox.set(in_names[i])
+                        break
+                else:
+                    if self.inputs:
+                        self.input_combobox.set(in_names[0])
 
         except Exception as e:
             print(f"No se pudieron cargar dispositivos: {e}")
