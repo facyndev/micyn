@@ -1,8 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo Buscando version en main.py...
-for /f "tokens=2 delims== " %%a in ('findstr /B "__version__" main.py') do set VERSION=%%~a
+echo Buscando version en constants.py...
+for /f "tokens=2 delims==" %%a in ('findstr /B "APP_VERSION" constants.py') do set VERSION=%%~a
+set VERSION=%VERSION: =%
+set VERSION=%VERSION:"=%
 if "%VERSION%"=="" set VERSION=1.0.0
 
 set APP_NAME=micyn
@@ -27,19 +29,15 @@ if not exist "icon.ico" (
     .\.venv\Scripts\python -c "from PIL import Image; img = Image.open('micyn_logo.jpg'); img.save('icon.png'); img.save('icon.ico', sizes=[(256,256)])"
 )
 
-:: Ejecutar el PyInstaller del entorno de Windows (--onefile para portabilidad)
-.\.venv\Scripts\pyinstaller --noconfirm --onefile --windowed ^
-    --add-data "icon.png;." ^
-    --add-data "icon.ico;." ^
-    --icon "icon.ico" ^
-    --name "%APP_NAME%" "main.py"
+:: Ejecutar el PyInstaller usando el spec (incluye hiddenimports correctos)
+.venv\Scripts\pyinstaller --noconfirm micyn.spec
 
-if exist "dist\%APP_NAME%.exe" (
+if exist "dist\%APP_NAME%\%APP_NAME%.exe" (
     echo.
     echo Moviendo ejecutable a carpeta releases...
-    move /y "dist\%APP_NAME%.exe" "%OUT_EXE%"
+    move /y "dist\%APP_NAME%\%APP_NAME%.exe" "%OUT_EXE%"
 ) else (
-    echo Error: PyInstaller no genero el archivo dist\%APP_NAME%.exe
+    echo Error: PyInstaller no genero el ejecutable
     goto end
 )
 
