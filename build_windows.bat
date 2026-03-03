@@ -32,12 +32,12 @@ if not exist "icon.ico" (
 :: Ejecutar el PyInstaller usando el spec (incluye hiddenimports correctos)
 .venv\Scripts\pyinstaller --noconfirm micyn.spec
 
-if exist "dist\%APP_NAME%\%APP_NAME%.exe" (
+if exist "dist\%APP_NAME%.exe" (
     echo.
     echo Moviendo ejecutable a carpeta releases...
-    move /y "dist\%APP_NAME%\%APP_NAME%.exe" "%OUT_EXE%"
+    move /y "dist\%APP_NAME%.exe" "%OUT_EXE%"
 ) else (
-    echo Error: PyInstaller no genero el ejecutable
+    echo Error: PyInstaller no genero el ejecutable en dist\%APP_NAME%.exe
     goto end
 )
 
