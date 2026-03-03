@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 # Recolectar todos los sub-paquetes del proyecto como source trees
 # para que PyInstaller los incluya correctamente
@@ -11,6 +12,9 @@ project_packages = [
 datas = [('icon.png', '.')]
 for pkg in project_packages:
     datas.append((pkg, pkg))
+
+# Recolectar datos de customtkinter
+datas += collect_data_files('customtkinter')
 
 a = Analysis(
     ['main.py'],
@@ -40,6 +44,10 @@ a = Analysis(
         'PIL.ImageDraw',
         'sounddevice',
         'numpy',
+        'PIL._tkinter_finder',
+        # Dependencias de pkg_resources (necesarias para pyi_rth_pkgres)
+        *collect_submodules('jaraco'),
+        *collect_submodules('pkg_resources'),
     ],
     hookspath=[],
     hooksconfig={},

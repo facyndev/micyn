@@ -3,8 +3,8 @@ set -e
 
 echo "=== Compilador Micyn para Ubuntu (DEB) ==="
 
-# Extraer version de main.py
-VERSION=$(grep -m 1 "^__version__ =" main.py | cut -d '"' -f 2)
+# Extraer version de constants.py
+VERSION=$(grep -m 1 "^APP_VERSION" constants.py | cut -d '"' -f 2)
 if [ -z "$VERSION" ]; then
     VERSION="1.0.0"
 fi
@@ -32,11 +32,8 @@ if [ ! -f "icon.png" ]; then
     ./.venv/bin/python3 -c "from PIL import Image; img = Image.open('micyn_logo.jpg'); img.save('icon.png')"
 fi
 
-echo "Compilando binario con PyInstaller..."
-./.venv/bin/pyinstaller --noconfirm --onedir --windowed \
-    --add-data "icon.png:." \
-    --icon "icon.png" \
-    --name "$APP_NAME" "main.py"
+echo "Compilando binario con PyInstaller (usando micyn.spec)..."
+./.venv/bin/pyinstaller --noconfirm micyn.spec
 
 echo "Armando estructura de paquete Debian..."
 mkdir -p "$DEB_DIR/opt/$APP_NAME"

@@ -1,6 +1,6 @@
 # constants.py
-APP_VERSION = "1.3.0-beta.1"
-APP_NAME = "Micyn (Beta)"
+APP_VERSION = "1.3.0"
+APP_NAME = "Micyn"
 SAMPLERATE = 44100
 CHANNELS = 1
 CHUNK_SIZE = 2048
