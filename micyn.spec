@@ -13,8 +13,9 @@ datas = [('icon.png', '.')]
 for pkg in project_packages:
     datas.append((pkg, pkg))
 
-# Recolectar datos de customtkinter
+# Recolectar datos de customtkinter y certifi (certificados SSL)
 datas += collect_data_files('customtkinter')
+datas += collect_data_files('certifi')
 
 a = Analysis(
     ['main.py'],
@@ -45,6 +46,7 @@ a = Analysis(
         'sounddevice',
         'numpy',
         'PIL._tkinter_finder',
+        'certifi',
         # Dependencias de pkg_resources (necesarias para pyi_rth_pkgres)
         *collect_submodules('jaraco'),
         *collect_submodules('pkg_resources'),
