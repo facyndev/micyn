@@ -48,7 +48,13 @@ class AudioDelayApp(ctk.CTk):
         
         # Ícono — debe aplicarse ANTES de withdraw para que el WM lo registre
         self._apply_icon()
-        
+
+        # WM_CLASS: necesario para que GNOME/X11 asocie la ventana al .desktop
+        # y muestre el ícono y nombre correctos en el dock
+        if self.os_system != "Windows":
+            self.wm_class(className="Micyn", instanceName="micyn")
+        self.title("Micyn")
+
         # Inicializar variables de vúmetros (listas usadas por _animate_bars)
         self.num_bars = 7
         self.in_bars  = []

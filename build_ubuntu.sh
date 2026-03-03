@@ -54,6 +54,7 @@ Icon=micyn
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;
+StartupWMClass=micyn
 EOF
 
 echo "Copiando Icono (si existe)..."
