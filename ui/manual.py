@@ -3,8 +3,9 @@ import customtkinter as ctk
 def show_manual(parent):
     top = ctk.CTkToplevel(parent)
     top.title("Manual de Uso - Micyn")
-    top.geometry("600x500")
-    top.resizable(False, False)
+    top.geometry("620x540")
+    top.minsize(500, 420)
+    top.resizable(True, True)
     top.attributes('-topmost', True)
     
     top.update_idletasks()

@@ -62,7 +62,7 @@ class MainWindowBuilder:
         nl.pack(pady=(5, 5))
         nl.bind("<Enter>",    lambda e: nl.configure(text_color="#FFFFFF"))
         nl.bind("<Leave>",    lambda e: nl.configure(text_color="#A0AEC0"))
-        nl.bind("<Button-1>", lambda e: webbrowser.open("https://facyn.dev"))
+        nl.bind("<Button-1>", lambda e: webbrowser.open("https://facyn.xyz"))
         
         hf.pack(pady=(0, 20))
         hl = ctk.CTkLabel(hf, text="? Manual de uso",

@@ -50,8 +50,9 @@ class SplashScreen(ctk.CTkToplevel):
             self.after(0, func)
 
     def _create_widgets(self):
-        container = ctk.CTkFrame(self, fg_color="transparent")
-        container.place(relx=0.5, rely=0.5, anchor="center")
+        # Frame principal centrado verticalmente
+        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container.place(relx=0.5, rely=0.5, anchor="center")
 
         try:
             from PIL import Image, ImageDraw
@@ -68,35 +69,59 @@ class SplashScreen(ctk.CTkToplevel):
             img.putalpha(mask)
             
             self._logo_img = ctk.CTkImage(light_image=img, dark_image=img, size=(120, 120))
-            ctk.CTkLabel(container, text="", image=self._logo_img).pack(pady=(40, 10))
+            ctk.CTkLabel(self.container, text="", image=self._logo_img).pack(pady=(0, 12))
         except:
-            ctk.CTkLabel(container, text="Micyn", font=("Google Sans", 32, "bold"), text_color="#FFFFFF").pack(pady=(60, 10))
+            ctk.CTkLabel(self.container, text="Micyn", font=("Google Sans", 32, "bold"), text_color="#FFFFFF").pack(pady=(0, 12))
 
-        self.status_label = ctk.CTkLabel(container, text="Buscando actualizaciones...", font=("Google Sans", 14), text_color="#A0AEC0")
-        self.status_label.pack(pady=10)
+        self.status_label = ctk.CTkLabel(self.container, text="Buscando actualizaciones...", font=("Google Sans", 14), text_color="#A0AEC0")
+        self.status_label.pack(pady=(0, 10))
 
-        # Contenedor para la barra de progreso de descarga (simplificado idéntico al backup)
-        self.progress_bar = ctk.CTkProgressBar(container, width=280, height=4, corner_radius=2, progress_color="#4570F7", fg_color="#18181A")
-        self.progress_bar.pack(pady=10)
+        self.progress_bar = ctk.CTkProgressBar(self.container, width=280, height=4, corner_radius=2, progress_color="#4570F7", fg_color="#18181A")
+        self.progress_bar.pack(pady=(0, 10))
         self.progress_bar.set(0)
         self.progress_bar.start()
 
     def _on_update_found(self, version, download_url):
         self.progress_bar.stop()
         self.progress_bar.pack_forget()
-        self.status_label.configure(text=f"¡NUEVA VERSIÓN: v{version}!", text_color="#FFFFFF", font=("Google Sans", 16, "bold"))
-        self.geometry("400x420")
+
+        # Actualizar ventana al nuevo tamaño
+        self.geometry("400x400")
+        self.update_idletasks()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        x = (sw // 2) - 200
+        y = (sh // 2) - 200
+        self.geometry(f"400x400+{x}+{y}")
+
+        # Actualizar el texto de estado (ya existe en el container)
+        self.status_label.configure(
+            text=f"¡NUEVA VERSIÓN: v{version}!",
+            text_color="#FFFFFF",
+            font=("Google Sans", 16, "bold")
+        )
+
+        # Botones dentro del mismo container (debajo de imagen y texto)
         btn_font = ctk.CTkFont(family="Google Sans", size=15, weight="bold")
-        
-        update_btn = ctk.CTkButton(self, text="⚡ Actualizar ahora", width=280, height=50, corner_radius=25,
-                                   fg_color="#4570F7", hover_color="#2F52CC", text_color="#FFFFFF", font=btn_font,
-                                   command=lambda: self._start_download(download_url, update_btn, skip_btn))
-        update_btn.pack(pady=(20, 10))
-        
-        skip_btn = ctk.CTkButton(self, text="Omitir por ahora", width=280, height=50, corner_radius=25,
-                                 fg_color="#27272A", hover_color="#3F3F46", text_color="#7A8084", font=btn_font,
-                                 command=self.on_ready)
-        skip_btn.pack(pady=5)
+
+        update_btn = ctk.CTkButton(
+            self.container, text="⚡ Actualizar ahora",
+            width=280, height=50, corner_radius=25,
+            fg_color="#4570F7", hover_color="#2F52CC", text_color="#FFFFFF",
+            font=btn_font,
+            command=lambda: self._start_download(download_url, update_btn, skip_btn)
+        )
+        update_btn.pack(pady=(20, 8))
+
+        skip_btn = ctk.CTkButton(
+            self.container, text="Omitir por ahora",
+            width=280, height=50, corner_radius=25,
+            fg_color="#27272A", hover_color="#3F3F46", text_color="#7A8084",
+            font=btn_font,
+            command=self.on_ready
+        )
+        skip_btn.pack(pady=(0, 10))
+
 
     def _start_download(self, url, btn1, btn2):
         btn1.pack_forget()
