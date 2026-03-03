@@ -193,28 +193,64 @@ class Updater:
             root_destroy_callback()
 
     def _install_linux(self, deb_path):
-        """Instala el .deb con permisos de administrador vía pkexec."""
-        env = os.environ.copy()
-        display     = env.get("DISPLAY", ":0")
-        xauth       = env.get("XAUTHORITY", "")
-        install_cmd = (
-            f"pkexec env DISPLAY={display} XAUTHORITY={xauth} "
-            f"dpkg -i '{deb_path}'"
-        )
-        print(f"[Updater] Ejecutando: {install_cmd}")
-        try:
-            proc = subprocess.Popen(install_cmd, shell=True)
-            print(f"[Updater] dpkg iniciado (PID {proc.pid})")
-        except Exception as e:
-            print(f"[Updater] pkexec falló ({e}), abriendo con xdg-open...")
-            subprocess.Popen(["xdg-open", deb_path])
+        """
+        Instala el .deb y relanza la app automáticamente.
+        Usa un script shell intermedio para:
+          1. pkexec dpkg -i  (requiere contraseña de admin)
+          2. sleep 1
+          3. nohup /opt/micyn/micyn &  (relanza como usuario normal)
+        """
+        import tempfile, stat
+        env     = os.environ.copy()
+        display = env.get("DISPLAY", ":0")
+        xauth   = env.get("XAUTHORITY", "")
 
-    def _install_windows(self, exe_path):
-        """Ejecuta el instalador .exe en Windows como proceso independiente."""
-        print(f"[Updater] Lanzando instalador Windows: {exe_path}")
+        sh_content = (
+            "#!/bin/bash\n"
+            f"pkexec env DISPLAY={display} XAUTHORITY={xauth} dpkg -i '{deb_path}'\n"
+            "sleep 1\n"
+            "nohup /opt/micyn/micyn > /dev/null 2>&1 &\n"
+        )
+        sh_path = os.path.join(tempfile.gettempdir(), "micyn_updater.sh")
+        with open(sh_path, "w") as f:
+            f.write(sh_content)
+        os.chmod(sh_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP)
+
+        print(f"[Updater] Lanzando script de actualización: {sh_path}")
+        subprocess.Popen(["bash", sh_path])
+
+    def _install_windows(self, new_exe_path):
+        """
+        Reemplaza el .exe actual con la nueva versión y relanza.
+        Usa un script .bat intermedio que:
+          1. Espera ~3 seg para que el proceso actual cierre
+          2. Copia el nuevo .exe sobre el ejecutable actual
+          3. Relanza el ejecutable actualizado
+          4. Se autoelimiina
+        """
+        import tempfile
+
+        # sys.executable apunta al .exe compilado actual
+        current_exe = sys.executable
+        print(f"[Updater] Ejecutable actual: {current_exe}")
+        print(f"[Updater] Nuevo .exe descargado: {new_exe_path}")
+
+        bat_content = (
+            "@echo off\n"
+            "ping -n 4 127.0.0.1 > nul\n"                     # esperar ~3 seg
+            f'copy /y "{new_exe_path}" "{current_exe}"\n'      # reemplazar exe
+            f'start "" "{current_exe}"\n'                       # relanzar
+            "del \"%~f0\"\n"                                    # autoeliminarse
+        )
+        bat_path = os.path.join(tempfile.gettempdir(), "micyn_updater.bat")
+        with open(bat_path, "w") as f:
+            f.write(bat_content)
+
+        print(f"[Updater] Lanzando script de actualización: {bat_path}")
         DETACHED_PROCESS = 0x00000008
         subprocess.Popen(
-            [exe_path],
+            ["cmd", "/c", bat_path],
             creationflags=DETACHED_PROCESS,
-            close_fds=True
+            close_fds=True,
         )
+
