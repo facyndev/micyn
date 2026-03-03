@@ -3,11 +3,13 @@ import numpy as np
 from constants import CHANNELS, CHUNK_SIZE
 
 class AudioEngine:
-    def __init__(self, ring_buffer, monitor_queue=None, monitor_active=False, is_running=lambda: True):
+    def __init__(self, ring_buffer, monitor_queue=None, monitor_active=False,
+                 is_running=lambda: True, monitor_delay_ref=None):
         self.ring_buffer = ring_buffer
         self.monitor_queue = monitor_queue
         self.monitor_active = monitor_active
         self.is_running_cb = is_running
+        self.monitor_delay_ref = monitor_delay_ref  # BooleanVar o None
         
         # Compartido para vúmetros
         self.current_in_amp = 0.0
@@ -70,10 +72,20 @@ class AudioEngine:
             outdata.fill(0)
 
     def _monitor_delay_callback_out(self, outdata, frames, time, status):
-        """Consume desde el ring_buffer lectura secundaria para escuchar el audio YA retrasado."""
+        """Consume desde el ring_buffer para escuchar el audio YA retrasado.
+        Respeta el estado dinámico del switch de la UI: si se desactiva, silencia."""
         if not self.is_running_cb():
             outdata.fill(0)
             return
-            
+
+        # Consultar el estado actual del switch (puede cambiar durante la sesión)
+        if self.monitor_delay_ref is not None:
+            try:
+                if not self.monitor_delay_ref.get():
+                    outdata.fill(0)
+                    return
+            except Exception:
+                pass
+
         data = self.ring_buffer.read_monitor(frames)
         outdata[:] = data

@@ -1,5 +1,5 @@
 # constants.py
-APP_VERSION = "1.3.8"
+APP_VERSION = "1.3.9"
 APP_NAME = "Micyn"
 SAMPLERATE = 44100
 CHANNELS = 1

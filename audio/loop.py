@@ -30,7 +30,8 @@ def start_audio_loop(
         ring_buffer=app_context.ring_buffer,
         monitor_queue=monitor_q,
         monitor_active=listen_live,
-        is_running=lambda: app_context.is_running
+        is_running=lambda: app_context.is_running,
+        monitor_delay_ref=getattr(app_context, 'monitor_delay_var', None)
     )
     
     # Asignar a la app para vúmetros

@@ -62,9 +62,9 @@ Name: "{group}\Desinstalar {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\{#MyAppName}";  Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-; Lanzar la app automáticamente al terminar la instalación (solo si no es actualización silenciosa)
+; Lanzar la app al terminar la instalación (incluso en actualizaciones silenciosas)
 Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar {#MyAppName}"; \
-  Flags: nowait postinstall skipifsilent
+  Flags: nowait postinstall
 
 [UninstallRun]
 ; No hay nada extra que desinstalar

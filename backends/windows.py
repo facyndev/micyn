@@ -20,16 +20,30 @@ class WindowsAudio(PlatformAudio):
     def init_virtual_cable(self):
         try:
             devices = sd.query_devices()
+
+            # Primera pasada: priorizar "CABLE Input" (donde SoundDevice envía audio al cable)
+            for i, d in enumerate(devices):
+                if d['max_output_channels'] > 0:
+                    name_lower = d['name'].lower()
+                    if any(kw in name_lower for kw in WINDOWS_CABLE_KEYWORDS) and 'input' in name_lower:
+                        self.windows_cable_found = True
+                        self.windows_cable_index = i
+                        print(f"[WindowsAudio] CABLE Input detectado (Index {i}): {d['name']}")
+                        return
+
+            # Segunda pasada: cualquier dispositivo con keyword de cable (fallback)
             for i, d in enumerate(devices):
                 if d['max_output_channels'] > 0:
                     name_lower = d['name'].lower()
                     if any(kw in name_lower for kw in WINDOWS_CABLE_KEYWORDS):
                         self.windows_cable_found = True
                         self.windows_cable_index = i
-                        print(f"Cable Virtual detectado en Windows (Index {i}): {d['name']}")
-                        break
-        except:
-            pass
+                        print(f"[WindowsAudio] Cable Virtual detectado (fallback, Index {i}): {d['name']}")
+                        return
+
+            print("[WindowsAudio] No se detectó ningún cable virtual.")
+        except Exception as e:
+            print(f"[WindowsAudio] Error detectando cable: {e}")
 
     def cleanup_virtual_cable(self):
         # En Windows no manejamos drivers viruales de forma nativa.
