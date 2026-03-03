@@ -53,8 +53,8 @@ Name: "english";   MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Crear acceso directo en el Escritorio"; GroupDescription: "Accesos directos:"
 
 [Files]
-; Copiar todo el contenido de la carpeta dist\micyn
-Source: "dist\micyn\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; PyInstaller en Windows genera un único micyn.exe (modo onefile)
+Source: "dist\micyn.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}";          Filename: "{app}\{#MyAppExeName}"
