@@ -15,14 +15,22 @@ class MainWindowBuilder:
         self.app = app_context
 
     def build(self):
-        """Construye todos los widgets bajo self.app.main_frame"""
+        """Construye todos los widgets bajo self.app.main_frame (scrollable)"""
         label_font = ctk.CTkFont(family="Google Sans", size=12, weight="bold")
         
-        self.app.main_frame = ctk.CTkFrame(self.app, fg_color="#09090B")
-        self.app.main_frame.pack(fill="both", expand=True)
+        # Contenedor externo (sin scroll) — necesario para el bloqueo de Windows VB-Cable
+        outer_frame = ctk.CTkFrame(self.app, fg_color="#09090B")
+        outer_frame.pack(fill="both", expand=True)
+        self.app.outer_frame = outer_frame
+
+        # Contenedor scrollable — todos los widgets de la UI van aquí
+        sf = ctk.CTkScrollableFrame(outer_frame, fg_color="#09090B", scrollbar_button_color="#27272A", scrollbar_button_hover_color="#3F3F46")
+        sf.pack(fill="both", expand=True)
+        # Expedimos main_frame al scrollable para que el bloqueo de Windows funcione igual
+        self.app.main_frame = sf
 
         # -- ENCABEZADO --
-        self.app.header_frame = ctk.CTkFrame(self.app.main_frame, fg_color="transparent", height=80)
+        self.app.header_frame = ctk.CTkFrame(sf, fg_color="transparent", height=80)
         self.app.header_frame.pack(fill="x", padx=40, pady=(20, 10))
         
         logo_frame = ctk.CTkFrame(self.app.header_frame, fg_color="transparent")
@@ -73,9 +81,8 @@ class MainWindowBuilder:
         hl.bind("<Button-1>", lambda e: show_manual(self.app))
 
         # -- WINDOWS VB-CABLE BLOQUEO DECLARATIVO --
-        # Si la app corre en Windows, la inyección del bloqueo se debe realizar y retornar para evitar crear los controles.
         if self.app.os_system == "Windows" and not self.app.platform_audio.windows_cable_found:
-            self.app.platform_audio.render_blocking_ui(self.app.main_frame, self.app.destroy)
+            self.app.platform_audio.render_blocking_ui(outer_frame, self.app.destroy)
             return
 
         # Helpers CustomTkinter Fixer
