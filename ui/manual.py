@@ -29,7 +29,7 @@ def show_manual(parent):
                  font=txt_font, text_color="#A0AEC0", justify="left").pack(fill="x")
 
     ctk.CTkLabel(sf, text="2. Configuración en Windows", font=hd_font, text_color="#4570F7", anchor="w").pack(fill="x", pady=(20, 5))
-    ctk.CTkLabel(sf, text="Windows requiere instalar el driver gratuito llamado 'VB-Cable'. Micyn no funcionará sin él.\nUna vez que inicies el retraso, ve a tu programa de transmisión (Ej: OBS, Discord, etc) y selecciona como micrófono/fuente de entrada el dispositivo que diga 'CABLE Output'. El mismo emitirá el audio con retraso.", 
+    ctk.CTkLabel(sf, text="Windows requiere instalar el driver gratuito 'VB-Cable'. Micyn no funcionará sin él.\n\n⚠️  En Windows, la salida de audio NO se llamará 'Micyn', sino\n'CABLE Output (VB-Audio Virtual Cable)'  — ese nombre lo pone el driver\ny no se puede cambiar desde la app.\n\nUna vez que inicies el retraso, ve a tu programa (OBS, Discord, etc) y selecciona\ncomo micrófono/entrada el dispositivo  'CABLE Output (VB-Audio Virtual Cable)'.\nEse dispositivo emitirá el audio con el retraso configurado.", 
                  font=txt_font, text_color="#A0AEC0", justify="left").pack(fill="x")
 
     ctk.CTkLabel(sf, text="3. Configuración en Linux (Ubuntu)", font=hd_font, text_color="#4570F7", anchor="w").pack(fill="x", pady=(20, 5))
