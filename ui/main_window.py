@@ -237,3 +237,12 @@ class MainWindowBuilder:
             font=ctk.CTkFont(family="Google Sans", size=20, weight="bold"),
             text_color="#A0AEC0")
         self.app.status_lbl.pack(side="left", padx=(0, 25))
+
+        # Versión al pie
+        from constants import APP_VERSION
+        ctk.CTkLabel(
+            self.app.main_frame,
+            text=f"v{APP_VERSION}",
+            font=ctk.CTkFont(family="Google Sans", size=11),
+            text_color="#3F3F46"
+        ).pack(pady=(10, 20))
