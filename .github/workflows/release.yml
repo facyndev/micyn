@@ -41,16 +41,35 @@ jobs:
         pip install -r requirements.txt
         pip install jaraco.text jaraco.functools jaraco.context
 
+    - name: Install Inno Setup (Windows)
+      if: matrix.os == 'windows-latest'
+      run: choco install innosetup --no-progress -y
+
     - name: Build Linux DEB Package
       if: matrix.os == 'ubuntu-latest'
       run: |
         chmod +x build_ubuntu.sh
         ./build_ubuntu.sh
 
-    - name: Build Windows EXE
+    - name: Build Windows with PyInstaller
       if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: pyinstaller --noconfirm micyn.spec
+
+    - name: Get version (Windows)
+      if: matrix.os == 'windows-latest'
+      id: version
+      shell: bash
       run: |
-        cmd /c build_windows.bat
+        VERSION=$(python -c "exec(open('constants.py').read()); print(APP_VERSION)")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        mkdir -p releases
+
+    - name: Build Windows Installer with Inno Setup
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=${{ steps.version.outputs.version }} micyn_installer.iss
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4

@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-windows:
-    name: Compilar Windows (.exe)
+    name: Compilar Windows (Instalador .exe)
     runs-on: windows-latest
     steps:
       - name: Checkout código
@@ -20,20 +20,32 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalar dependencias
+      - name: Instalar dependencias Python
         run: pip install -r requirements.txt pyinstaller
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup --no-progress -y
 
       - name: Compilar con PyInstaller
         run: pyinstaller --noconfirm micyn.spec
 
-      - name: Comprimir release Windows
-        run: Compress-Archive -Path dist/micyn/* -DestinationPath micyn-windows-beta.zip
+      - name: Obtener versión
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(python -c "exec(open('constants.py').read()); print(APP_VERSION)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Compilar instalador con Inno Setup
+        shell: cmd
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=${{ steps.version.outputs.version }} micyn_installer.iss
 
       - name: Subir artefacto Windows
         uses: actions/upload-artifact@v4
         with:
           name: micyn-windows-beta
-          path: micyn-windows-beta.zip
+          path: releases/Micyn-Setup-*.exe
 
   build-linux:
     name: Compilar Linux (.deb)
@@ -89,5 +101,5 @@ jobs:
           prerelease: true
           fail_on_unmatched_files: false
           files: |
-            artifacts/micyn-windows-beta.zip
+            artifacts/Micyn-Setup-*.exe
             artifacts/*.deb

@@ -197,19 +197,39 @@ class Updater:
         Instala el .deb y relanza la app automáticamente.
         Usa un script shell intermedio para:
           1. pkexec dpkg -i  (requiere contraseña de admin)
-          2. sleep 1
-          3. nohup /opt/micyn/micyn &  (relanza como usuario normal)
+          2. sleep 2
+          3. Relanza /opt/micyn/micyn como el usuario real (no root)
+             pasando DISPLAY y DBUS_SESSION_BUS_ADDRESS para que
+             el entorno gráfico esté disponible.
         """
         import tempfile, stat
+
         env     = os.environ.copy()
         display = env.get("DISPLAY", ":0")
         xauth   = env.get("XAUTHORITY", "")
+        dbus    = env.get("DBUS_SESSION_BUS_ADDRESS", "")
+
+        # Obtener el usuario real (no root) que lanzó la aplicación
+        real_user = (
+            env.get("SUDO_USER")
+            or env.get("LOGNAME")
+            or env.get("USER")
+            or "user"
+        )
+
+        # Construir el comando de relanzamiento como usuario normal
+        relaunch_env = f"DISPLAY={display}"
+        if dbus:
+            relaunch_env += f" DBUS_SESSION_BUS_ADDRESS={dbus}"
+        if xauth:
+            relaunch_env += f" XAUTHORITY={xauth}"
 
         sh_content = (
             "#!/bin/bash\n"
             f"pkexec env DISPLAY={display} XAUTHORITY={xauth} dpkg -i '{deb_path}'\n"
-            "sleep 1\n"
-            "nohup /opt/micyn/micyn > /dev/null 2>&1 &\n"
+            "sleep 2\n"
+            # Relanzar como usuario normal: su -c ejecuta como ese usuario
+            f"su -c 'env {relaunch_env} nohup /opt/micyn/micyn > /dev/null 2>&1 &' '{real_user}'\n"
         )
         sh_path = os.path.join(tempfile.gettempdir(), "micyn_updater.sh")
         with open(sh_path, "w") as f:
@@ -217,40 +237,28 @@ class Updater:
         os.chmod(sh_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP)
 
         print(f"[Updater] Lanzando script de actualización: {sh_path}")
+        print(f"[Updater] Usuario real para relanzar: {real_user}")
         subprocess.Popen(["bash", sh_path])
 
-    def _install_windows(self, new_exe_path):
+    def _install_windows(self, installer_path):
         """
-        Reemplaza el .exe actual con la nueva versión y relanza.
-        Usa un script .bat intermedio que:
-          1. Espera ~3 seg para que el proceso actual cierre
-          2. Copia el nuevo .exe sobre el ejecutable actual
-          3. Relanza el ejecutable actualizado
-          4. Se autoelimiina
+        Lanza el instalador Inno Setup descargado en modo silencioso.
+        El instalador se encarga de:
+          - Reemplazar la versión anterior en C:\\Program Files\\Micyn\\
+          - Actualizar accesos directos del menú inicio
+          - No requiere script .bat intermedio
         """
-        import tempfile
+        print(f"[Updater] Ejecutando instalador Inno Setup: {installer_path}")
 
-        # sys.executable apunta al .exe compilado actual
-        current_exe = sys.executable
-        print(f"[Updater] Ejecutable actual: {current_exe}")
-        print(f"[Updater] Nuevo .exe descargado: {new_exe_path}")
-
-        bat_content = (
-            "@echo off\n"
-            "ping -n 4 127.0.0.1 > nul\n"                     # esperar ~3 seg
-            f'copy /y "{new_exe_path}" "{current_exe}"\n'      # reemplazar exe
-            f'start "" "{current_exe}"\n'                       # relanzar
-            "del \"%~f0\"\n"                                    # autoeliminarse
-        )
-        bat_path = os.path.join(tempfile.gettempdir(), "micyn_updater.bat")
-        with open(bat_path, "w") as f:
-            f.write(bat_content)
-
-        print(f"[Updater] Lanzando script de actualización: {bat_path}")
         DETACHED_PROCESS = 0x00000008
         subprocess.Popen(
-            ["cmd", "/c", bat_path],
+            [
+                installer_path,
+                "/VERYSILENT",        # Sin ventanas de confirmación
+                "/NORESTART",         # No reiniciar Windows
+                "/SP-",               # Sin splash del instalador
+                "/SUPPRESSMSGBOXES",  # Sin msgbox de errores
+            ],
             creationflags=DETACHED_PROCESS,
             close_fds=True,
         )
-

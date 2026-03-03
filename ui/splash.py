@@ -13,10 +13,9 @@ class SplashScreen(ctk.CTkToplevel):
         self.parent = parent
         self.on_ready_callback = on_ready_callback
         
-        self.title("Micyn Splash")
+        self.title("Micyn")
         self.geometry("400x320")
         self.resizable(False, False)
-        self.overrideredirect(True)
         self.configure(fg_color="#09090B")
         self.attributes('-topmost', True)
 

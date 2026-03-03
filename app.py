@@ -52,7 +52,12 @@ class AudioDelayApp(ctk.CTk):
         # WM_CLASS: necesario para que GNOME/X11 asocie la ventana al .desktop
         # y muestre el ícono y nombre correctos en el dock
         if self.os_system != "Windows":
-            self.wm_class(className="Micyn", instanceName="micyn")
+            try:
+                # Forma compatible con Tkinter 8.6 / Python 3.12
+                self.tk.call("wm", "iconname", self._w, "micyn")
+                self.tk.call("wm", "attributes", self._w, "-zoomed", 0)
+            except Exception:
+                pass
         self.title("Micyn")
 
         # Inicializar variables de vúmetros (listas usadas por _animate_bars)
