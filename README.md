@@ -8,7 +8,7 @@ Micyn toma la señal de tu micrófono físico, la guarda en un buffer circular y
 
 - Enfoque de uso actual: `OBS`.
 - Plataformas soportadas: `Windows` y `Linux (Ubuntu/PipeWire-Pulse)`.
-- Versión actual: `1.5.2` (definida en `constants.py`).
+- Versión actual: `1.5.3` (definida en `constants.py`).
 
 ## Funcionalidades principales
 
@@ -91,8 +91,8 @@ El workflow `.github/workflows/release.yml` compila para Ubuntu y Windows al hac
 Ejemplo:
 
 ```bash
-git tag v1.5.2
-git push origin v1.5.2
+git tag v1.5.3
+git push origin v1.5.3
 ```
 
 Esto publica los artefactos en GitHub Releases (`.deb` y `.exe`).

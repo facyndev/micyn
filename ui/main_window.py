@@ -142,7 +142,8 @@ class MainWindowBuilder:
             font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"),
             text_color="#FFFFFF", progress_color="#4570F7",
             button_color="#FFFFFF", button_hover_color="#3F3F46",
-            fg_color="#27272A", switch_width=36, switch_height=18)
+            fg_color="#27272A", switch_width=36, switch_height=18,
+            command=self.app._on_monitor_live_toggle)
         self.app.monitor_chk.pack(expand=True, padx=10, pady=10)
 
         mf2 = ctk.CTkFrame(mc, height=60, fg_color="#18181A", corner_radius=12)
@@ -154,7 +155,8 @@ class MainWindowBuilder:
             font=ctk.CTkFont(family="Google Sans", size=12, weight="bold"),
             text_color="#FFFFFF", progress_color="#4570F7",
             button_color="#FFFFFF", button_hover_color="#3F3F46",
-            fg_color="#27272A", switch_width=36, switch_height=18)
+            fg_color="#27272A", switch_width=36, switch_height=18,
+            command=self.app._on_monitor_delay_toggle)
         self.app.monitor_delay_chk.pack(expand=True, padx=10, pady=10)
 
         # Medidores (VUs) en layout horizontal ocupando el espacio restante

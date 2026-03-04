@@ -69,6 +69,7 @@ class AudioDelayApp(ctk.CTk):
         self.current_amplitudes_out = [0.0] * self.num_bars
         self.target_amplitudes_out  = [0.0] * self.num_bars
         self.audio_engine = None
+        self._syncing_monitor_switch = False
         
         self.withdraw()
         self.splash = SplashScreen(self, self.on_splash_ready)
@@ -190,6 +191,24 @@ class AudioDelayApp(ctk.CTk):
         else:
             self.custom_time_entry.configure(state="disabled", fg_color="#09090B")
 
+    def _on_monitor_live_toggle(self):
+        """Evita doble monitoreo simultaneo (causa eco)."""
+        if self._syncing_monitor_switch:
+            return
+        if self.monitor_var.get() and self.monitor_delay_var.get():
+            self._syncing_monitor_switch = True
+            self.monitor_delay_var.set(False)
+            self._syncing_monitor_switch = False
+
+    def _on_monitor_delay_toggle(self):
+        """Evita doble monitoreo simultaneo (causa eco)."""
+        if self._syncing_monitor_switch:
+            return
+        if self.monitor_delay_var.get() and self.monitor_var.get():
+            self._syncing_monitor_switch = True
+            self.monitor_var.set(False)
+            self._syncing_monitor_switch = False
+
     def play(self):
         if self.is_running: return
         
@@ -240,6 +259,11 @@ class AudioDelayApp(ctk.CTk):
         
         listen_live = self.monitor_chk.get() == 1
         listen_delay = self.monitor_delay_chk.get() == 1
+
+        # Defensa extra por si algun estado viejo deja ambos activos.
+        if listen_live and listen_delay:
+            listen_delay = False
+            self.monitor_delay_var.set(False)
 
         monitor_device_id = None
         listen_delay_device_id = None
