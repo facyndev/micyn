@@ -62,7 +62,6 @@ def start_audio_loop(
         # Capturar IDs de sink-inputs de monitor (ya abiertos) ANTES de abrir el stream principal
         monitor_stream_ids = []
         if app_context.os_system == 'Linux':
-            import time
             time.sleep(0.5) # dar tiempo a PipeWire para registrar los monitores
             import subprocess, re as _re
             try:
