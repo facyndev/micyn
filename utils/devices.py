@@ -18,12 +18,10 @@ def clean_device_name(name):
     if len(name) > 40:
         name = name[:37] + "..."
     return name or "Dispositivo Desconocido"
-
-def _get_wasapi_hostapi_index():
-    """Retorna el índice de host API WASAPI, o None si no se encuentra."""
+    """Retorna el índice de host API MME, o None si no se encuentra."""
     try:
         for i, api in enumerate(sd.query_hostapis()):
-            if 'wasapi' in api['name'].lower():
+            if 'mme' in api['name'].lower():
                 return i
     except Exception:
         pass
@@ -32,7 +30,7 @@ def _get_wasapi_hostapi_index():
 def populate_devices(os_system):
     """
     Busca y procesa los dispositivos físicos del sistema.
-    En Windows filtra solo WASAPI (igual que OBS) para evitar duplicados de MME/DirectSound.
+    En Windows filtra solo MME para evitar duplicados y crashes de resampling.
     Devuelve un tuple: (inputs, outputs).
     """
     inputs = []
@@ -40,12 +38,12 @@ def populate_devices(os_system):
     try:
         devices = sd.query_devices()
 
-        # En Windows: obtener solo dispositivos WASAPI para evitar duplicados
-        wasapi_idx = _get_wasapi_hostapi_index() if os_system == "Windows" else None
+        # En Windows: obtener solo dispositivos MME para evitar duplicados y crashes
+        mme_idx = _get_mme_hostapi_index() if os_system == "Windows" else None
 
         for i, d in enumerate(devices):
-            # Filtrar por host API WASAPI en Windows
-            if wasapi_idx is not None and d.get('hostapi') != wasapi_idx:
+            # Filtrar por host API MME en Windows
+            if mme_idx is not None and d.get('hostapi') != mme_idx:
                 continue
 
             name_lower = d['name'].lower()

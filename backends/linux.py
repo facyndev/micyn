@@ -140,7 +140,9 @@ class LinuxAudio(PlatformAudio):
         import time
         time.sleep(0.5)   # dar tiempo a PipeWire para registrar el stream
 
-        moved = self._move_my_sink_inputs(LINUX_SINK_NAME)
+        # A post_stream_setup, loop.py le pasa los IDs pre-existentes de los auriculares.
+        # En _move_my_sink_inputs hay que ignorarlos.
+        moved = self._move_my_sink_inputs(LINUX_SINK_NAME, ignore_ids=main_stream_ids)
         print(f"[LinuxAudio] Sink-inputs movidos a {LINUX_SINK_NAME}: {moved}")
         return moved
 

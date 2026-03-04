@@ -67,20 +67,32 @@ def start_audio_loop(
         stream_out.start()
 
         # ---- Ruteos Específicos del OS POST-arranque de Salida ----
-        main_stream_ids = []
+        # Capturar IDs de sink-inputs de monitor (ya abiertos) para excluirlos del ruteo al sink virtual
+        monitor_stream_ids = []
         if app_context.os_system == 'Linux':
-            import subprocess
+            import subprocess, re as _re
             try:
-                out = subprocess.check_output(
-                    ["pactl", "list", "sink-inputs"], 
-                    env=dict(os.environ, LC_ALL="C")
-                ).decode()
-                # Filtrar solo el último PID por si hay latencias (el último es el stream de salida base)
-                # La lógica final se delega a PlatformAudio
-            except: pass
-            
-        main_stream_ids = app_context.platform_audio.post_stream_setup(stream_out, main_stream_ids)
-        
+                env = dict(os.environ, LC_ALL="C")
+                out_pa = subprocess.check_output(["pactl", "list", "sink-inputs"], env=env).decode()
+                pid = str(os.getpid())
+                for block in _re.split(r'\n(?=Sink Input #)', out_pa):
+                    if pid in block or "python" in block.lower():
+                        m = _re.search(r'Sink Input #(\d+)', block)
+                        if m:
+                            monitor_stream_ids.append(m.group(1))
+            except Exception:
+                pass
+
+        main_stream_ids = app_context.platform_audio.post_stream_setup(
+            stream_out, monitor_stream_ids
+        )
+
+        # En Linux: los streams de monitor deben ir al sink FÍSICO, nunca al virtual
+        # (los IDs de monitor son los que teníamos antes de abrir stream_out,
+        #  post_stream_setup ya los excluyó del virtual, ahora los mandamos al físico)
+        if app_context.os_system == 'Linux' and monitor_stream_ids:
+            app_context.platform_audio.route_monitors(monitor_stream_ids)
+
         # 4. Stream de Entrada (Micrófono)
         stream_in = sd.InputStream(
             samplerate=SAMPLERATE, device=in_device_id, channels=CHANNELS,
