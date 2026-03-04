@@ -18,10 +18,12 @@ def clean_device_name(name):
     if len(name) > 40:
         name = name[:37] + "..."
     return name or "Dispositivo Desconocido"
-    """Retorna el índice de host API MME, o None si no se encuentra."""
+
+def _get_directsound_hostapi_index():
+    """Retorna el índice de host API DirectSound, o None si no se encuentra."""
     try:
         for i, api in enumerate(sd.query_hostapis()):
-            if 'mme' in api['name'].lower():
+            if 'directsound' in api['name'].lower():
                 return i
     except Exception:
         pass
@@ -30,7 +32,7 @@ def clean_device_name(name):
 def populate_devices(os_system):
     """
     Busca y procesa los dispositivos físicos del sistema.
-    En Windows filtra solo MME para evitar duplicados y crashes de resampling.
+    En Windows filtra solo DirectSound para evitar duplicados y crashes de resampling.
     Devuelve un tuple: (inputs, outputs).
     """
     inputs = []
@@ -38,12 +40,12 @@ def populate_devices(os_system):
     try:
         devices = sd.query_devices()
 
-        # En Windows: obtener solo dispositivos MME para evitar duplicados y crashes
-        mme_idx = _get_mme_hostapi_index() if os_system == "Windows" else None
+        # En Windows: obtener solo dispositivos DirectSound para evitar duplicados y crashes
+        ds_idx = _get_directsound_hostapi_index() if os_system == "Windows" else None
 
         for i, d in enumerate(devices):
-            # Filtrar por host API MME en Windows
-            if mme_idx is not None and d.get('hostapi') != mme_idx:
+            # Filtrar por host API DirectSound en Windows
+            if ds_idx is not None and d.get('hostapi') != ds_idx:
                 continue
 
             name_lower = d['name'].lower()

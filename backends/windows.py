@@ -19,23 +19,23 @@ class WindowsAudio(PlatformAudio):
 
     def init_virtual_cable(self):
         try:
-            from utils.devices import _get_mme_hostapi_index
+            from utils.devices import _get_directsound_hostapi_index
             devices = sd.query_devices()
-            mme_idx = _get_mme_hostapi_index()
+            ds_idx = _get_directsound_hostapi_index()
 
-            # Log diagnóstico: mostrar todos los dispositivos MME para debugging
-            print("[WindowsAudio] === Dispositivos MME disponibles ===")
+            # Log diagnóstico: mostrar todos los dispositivos DirectSound para debugging
+            print("[WindowsAudio] === Dispositivos DirectSound disponibles ===")
             for i, d in enumerate(devices):
-                if mme_idx is not None and d.get('hostapi') != mme_idx:
+                if ds_idx is not None and d.get('hostapi') != ds_idx:
                     continue
                 in_ch  = d['max_input_channels']
                 out_ch = d['max_output_channels']
                 print(f"  [{i:2}] IN={in_ch} OUT={out_ch}  {d['name']}")
             print("[WindowsAudio] ==========================================")
 
-            # Primera pasada: priorizar "CABLE Input" en MME
+            # Primera pasada: priorizar "CABLE Input" en DirectSound
             for i, d in enumerate(devices):
-                if mme_idx is not None and d.get('hostapi') != mme_idx:
+                if ds_idx is not None and d.get('hostapi') != ds_idx:
                     continue
                 if d['max_output_channels'] > 0:
                     name_lower = d['name'].lower()
@@ -45,9 +45,9 @@ class WindowsAudio(PlatformAudio):
                         print(f"[WindowsAudio] CABLE Input detectado (Index {i}): {d['name']}")
                         return
 
-            # Segunda pasada: cualquier cable en MME (fallback)
+            # Segunda pasada: cualquier cable en DirectSound (fallback)
             for i, d in enumerate(devices):
-                if mme_idx is not None and d.get('hostapi') != mme_idx:
+                if ds_idx is not None and d.get('hostapi') != ds_idx:
                     continue
                 if d['max_output_channels'] > 0:
                     name_lower = d['name'].lower()
