@@ -33,15 +33,6 @@ build_windows.bat
 - Keep backend-specific logic inside `backends/linux.py` or `backends/windows.py`; avoid cross-platform conditionals spread across UI code.
 - Prefer small, focused methods in audio paths; avoid silent broad `except` unless shutdown-safety requires it.
 
-## Testing Guidelines
-- There is currently no automated `tests/` suite; validate changes with manual functional checks.
-- Minimum validation before PR:
-  - app starts and closes cleanly
-  - input/output device selection works
-  - delayed output routes correctly to virtual devices
-  - monitor mode does not leak unexpected audio paths
-- If adding tests, use `pytest` with files named `test_<module>.py` under a new `tests/` directory.
-
 ## Commit & Pull Request Guidelines
 - Keep commit style consistent with history: versioned releases and focused fixes, e.g. `v1.5.1: fix ...` or `fix: ...`.
 - One logical change per commit; include impacted platform(s) (`Windows`, `Linux`) in message when relevant.
