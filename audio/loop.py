@@ -22,7 +22,11 @@ def start_audio_loop(
     Función que bloquea y mantiene viva la sesión de SoundDevice.
     Debe correr en su propio hilo.
     """
-    app_context.ring_buffer = RingBuffer(delay_seconds, fallback_samplerate=SAMPLERATE)
+    # Evitar el crash paInvalidSampleRate leyendo el nativo
+    device_info = sd.query_devices(in_device_id)
+    actual_samplerate = int(device_info['default_samplerate'])
+
+    app_context.ring_buffer = RingBuffer(delay_seconds, fallback_samplerate=actual_samplerate)
     monitor_q = queue.Queue(maxsize=10) if listen_live else None
 
     # Inicializar estado general compartido de la instancia activa
@@ -43,7 +47,7 @@ def start_audio_loop(
         # 1. Módulo Monitor Directo (Sin retraso)
         if listen_live and monitor_device_id is not None:
             stream_mon = sd.OutputStream(
-                samplerate=SAMPLERATE, device=monitor_device_id, channels=CHANNELS,
+                samplerate=actual_samplerate, device=monitor_device_id, channels=CHANNELS,
                 callback=engine._monitor_callback_out, blocksize=CHUNK_SIZE
             )
             streams.append(stream_mon)
@@ -52,7 +56,7 @@ def start_audio_loop(
         # 2. Módulo Monitor Retrasado
         if listen_delay and listen_delay_device_id is not None:
             stream_mon_d = sd.OutputStream(
-                samplerate=SAMPLERATE, device=listen_delay_device_id, channels=CHANNELS,
+                samplerate=actual_samplerate, device=listen_delay_device_id, channels=CHANNELS,
                 callback=engine._monitor_delay_callback_out, blocksize=CHUNK_SIZE
             )
             streams.append(stream_mon_d)
@@ -61,13 +65,17 @@ def start_audio_loop(
         # ---- Ruteos Específicos del OS POST-arranque de Monitores ----
         # Capturar IDs de sink-inputs de monitor (ya abiertos) ANTES de abrir el stream principal
         monitor_stream_ids = []
-        if app_context.os_system == 'Linux':
-            time.sleep(0.5) # dar tiempo a PipeWire para registrar los monitores
-            monitor_stream_ids = app_context.platform_audio.get_my_sink_inputs()
+        if app_context.os_system == 'Linux' and (listen_live or listen_delay):
+            expected = int(bool(listen_live)) + int(bool(listen_delay))
+            for _ in range(20): # hasta 2 segundos de polling para que pipewire los registre
+                monitor_stream_ids = app_context.platform_audio.get_my_sink_inputs()
+                if len(monitor_stream_ids) >= expected:
+                    break
+                time.sleep(0.1)
 
         # 3. Stream de Salida Principal (Micyn)
         stream_out = sd.OutputStream(
-            samplerate=SAMPLERATE, device=out_device_id, channels=CHANNELS,
+            samplerate=actual_samplerate, device=out_device_id, channels=CHANNELS,
             callback=engine._audio_callback_out, blocksize=CHUNK_SIZE
         )
         streams.append(stream_out)
@@ -84,7 +92,7 @@ def start_audio_loop(
 
         # 4. Stream de Entrada (Micrófono)
         stream_in = sd.InputStream(
-            samplerate=SAMPLERATE, device=in_device_id, channels=CHANNELS,
+            samplerate=actual_samplerate, device=in_device_id, channels=CHANNELS,
             callback=engine._audio_callback_in, blocksize=CHUNK_SIZE
         )
         streams.append(stream_in)
@@ -97,7 +105,8 @@ def start_audio_loop(
     except Exception as e:
         app_context.is_running = False
         import tkinter as tk
-        app_context.after(0, lambda: messagebox.showerror("Error de Audio", str(e)))
+        err_msg = str(e)
+        app_context.after(0, lambda msg=err_msg: messagebox.showerror("Error de Audio", msg))
     finally:
         for s in reversed(streams):
             try:
