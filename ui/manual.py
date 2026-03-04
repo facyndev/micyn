@@ -37,5 +37,16 @@ def show_manual(parent):
     ctk.CTkLabel(sf, text="En Linux la integración es automática.\nAbre OBS y busca un micrófono virtual nuevo llamado 'Micyn'.\nSelecciónalo como entrada de micrófono y listo.", 
                  font=txt_font, text_color="#A0AEC0", justify="left").pack(fill="x")
     
-    btn = ctk.CTkButton(sf, text="Entendido", width=200, height=40, font=ctk.CTkFont(family="Google Sans", weight="bold"), command=top.destroy)
+    btn = ctk.CTkButton(
+        sf,
+        text="Entendido",
+        width=280,
+        height=50,
+        corner_radius=25,
+        fg_color="#4570F7",
+        hover_color="#2F52CC",
+        text_color="#FFFFFF",
+        font=ctk.CTkFont(family="Google Sans", size=17, weight="bold"),
+        command=top.destroy
+    )
     btn.pack(pady=30)

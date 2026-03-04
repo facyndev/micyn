@@ -61,7 +61,7 @@ class Updater:
     def _run_network_check(self):
         """
         Consulta GitHub Releases y llama a los callbacks según resultado.
-        - update_found_callback(version, download_url) si hay nueva versión.
+        - update_found_callback(version, download_url, release_url) si hay nueva versión.
         - no_update_callback() si ya está al día o hay error de red.
         """
         try:
@@ -96,6 +96,7 @@ class Updater:
                 # Buscar el asset correcto según plataforma
                 file_ext    = ".exe" if self.is_windows else ".deb"
                 download_url = None
+                release_url = data.get("html_url", "")
                 for asset in data.get("assets", []):
                     if asset.get("name", "").lower().endswith(file_ext):
                         download_url = asset["browser_download_url"]
@@ -105,7 +106,7 @@ class Updater:
                     clean_version = latest_tag.lstrip("v")
                     print(f"[Updater] Descarga disponible: {download_url}")
                     self.check_callback(
-                        lambda: self.update_found_callback(clean_version, download_url)
+                        lambda: self.update_found_callback(clean_version, download_url, release_url)
                     )
                     return
                 else:

@@ -80,7 +80,7 @@ class SplashScreen(ctk.CTkToplevel):
         self.progress_bar.set(0)
         self.progress_bar.start()
 
-    def _on_update_found(self, version, download_url):
+    def _on_update_found(self, version, download_url, release_url):
         self.progress_bar.stop()
         self.progress_bar.pack_forget()
 
@@ -100,6 +100,19 @@ class SplashScreen(ctk.CTkToplevel):
             font=("Google Sans", 16, "bold")
         )
 
+        if release_url:
+            changes_link = ctk.CTkLabel(
+                self.container,
+                text="Ver cambios",
+                text_color="#A0AEC0",
+                font=ctk.CTkFont(family="Google Sans", size=13, underline=True),
+                cursor="hand2"
+            )
+            changes_link.pack(pady=(2, 12))
+            changes_link.bind("<Enter>", lambda e: changes_link.configure(text_color="#FFFFFF"))
+            changes_link.bind("<Leave>", lambda e: changes_link.configure(text_color="#A0AEC0"))
+            changes_link.bind("<Button-1>", lambda e, u=release_url: webbrowser.open(u))
+
         # Botones dentro del mismo container (debajo de imagen y texto)
         btn_font = ctk.CTkFont(family="Google Sans", size=15, weight="bold")
 
@@ -110,7 +123,7 @@ class SplashScreen(ctk.CTkToplevel):
             font=btn_font,
             command=lambda: self._start_download(download_url, update_btn, skip_btn)
         )
-        update_btn.pack(pady=(20, 8))
+        update_btn.pack(pady=(8, 8))
 
         skip_btn = ctk.CTkButton(
             self.container, text="Omitir por ahora",
