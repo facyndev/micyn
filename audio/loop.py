@@ -22,7 +22,11 @@ def start_audio_loop(
     Función que bloquea y mantiene viva la sesión de SoundDevice.
     Debe correr en su propio hilo.
     """
-    app_context.ring_buffer = RingBuffer(delay_seconds, fallback_samplerate=SAMPLERATE)
+    # Obtener el samplerate nativo del micrófono para sincronizar todos los streams a la misma velocidad
+    device_info = sd.query_devices(in_device_id)
+    actual_samplerate = int(device_info['default_samplerate'])
+    
+    app_context.ring_buffer = RingBuffer(delay_seconds, fallback_samplerate=actual_samplerate)
     monitor_q = queue.Queue(maxsize=10) if listen_live else None
 
     # Inicializar estado general compartido de la instancia activa
@@ -43,7 +47,7 @@ def start_audio_loop(
         # 1. Módulo Monitor Directo (Sin retraso)
         if listen_live and monitor_device_id is not None:
             stream_mon = sd.OutputStream(
-                device=monitor_device_id,
+                samplerate=actual_samplerate, device=monitor_device_id,
                 callback=engine._monitor_callback_out, blocksize=CHUNK_SIZE
             )
             streams.append(stream_mon)
@@ -52,7 +56,7 @@ def start_audio_loop(
         # 2. Módulo Monitor Retrasado
         if listen_delay and listen_delay_device_id is not None:
             stream_mon_d = sd.OutputStream(
-                device=listen_delay_device_id,
+                samplerate=actual_samplerate, device=listen_delay_device_id,
                 callback=engine._monitor_delay_callback_out, blocksize=CHUNK_SIZE
             )
             streams.append(stream_mon_d)
@@ -67,7 +71,7 @@ def start_audio_loop(
 
         # 3. Stream de Salida Principal (Micyn)
         stream_out = sd.OutputStream(
-            device=out_device_id,
+            samplerate=actual_samplerate, device=out_device_id,
             callback=engine._audio_callback_out, blocksize=CHUNK_SIZE
         )
         streams.append(stream_out)
@@ -84,7 +88,7 @@ def start_audio_loop(
 
         # 4. Stream de Entrada (Micrófono)
         stream_in = sd.InputStream(
-            device=in_device_id,
+            samplerate=actual_samplerate, device=in_device_id,
             callback=engine._audio_callback_in, blocksize=CHUNK_SIZE
         )
         streams.append(stream_in)
