@@ -22,7 +22,7 @@ def start_audio_loop(
     Función que bloquea y mantiene viva la sesión de SoundDevice.
     Debe correr en su propio hilo.
     """
-    app_context.ring_buffer = RingBuffer(delay_seconds, SAMPLERATE, CHANNELS)
+    app_context.ring_buffer = RingBuffer(delay_seconds, fallback_samplerate=SAMPLERATE)
     monitor_q = queue.Queue(maxsize=10) if listen_live else None
 
     # Inicializar estado general compartido de la instancia activa
