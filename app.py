@@ -248,10 +248,33 @@ class AudioDelayApp(ctk.CTk):
             import sounddevice as sd
             if self.os_system == "Windows":
                 # En Windows buscar el primer dispositivo de salida que NO sea el cable virtual
-                # (evita mandar el monitor al VB-Cable en vez de a los auriculares)
                 monitor_device_id = self._get_monitor_device_windows(sd)
             else:
-                monitor_device_id = sd.default.device[1]
+                # En Linux (Ubuntu), el default del OSS podría haber sido alterado a MicynOutput por pactl.
+                # Debemos asegurarnos de no usar los cables virtuales, enviándolo al primer output real
+                # (o usar default si sabemos que es físico)
+                devices = sd.query_devices()
+                default_out = sd.default.device[1]
+                
+                # Intentar usar el default siempre y cuando no se llame MicynOutput o DelaySinkInternal
+                if default_out is not None and default_out >= 0:
+                    d_name = devices[default_out]['name'].lower()
+                    from constants import LINUX_SINK_NAME, LINUX_OUTPUT_SINK
+                    if LINUX_SINK_NAME.lower() not in d_name and LINUX_OUTPUT_SINK.lower() not in d_name:
+                        monitor_device_id = default_out
+                
+                # Fallback: buscar un dispositivo output físico (ej: alsa)
+                if monitor_device_id is None:
+                    for i, d in enumerate(devices):
+                        if d['max_output_channels'] > 0:
+                            n = d['name'].lower()
+                            if "delay" not in n and "micyn" not in n:
+                                monitor_device_id = i
+                                break
+                                
+                if monitor_device_id is None:
+                    monitor_device_id = default_out
+
             listen_delay_device_id = monitor_device_id
 
         self.audio_thread = threading.Thread(
