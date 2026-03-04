@@ -19,36 +19,51 @@ def clean_device_name(name):
         name = name[:37] + "..."
     return name or "Dispositivo Desconocido"
 
+def _get_wasapi_hostapi_index():
+    """Retorna el índice de host API WASAPI, o None si no se encuentra."""
+    try:
+        for i, api in enumerate(sd.query_hostapis()):
+            if 'wasapi' in api['name'].lower():
+                return i
+    except Exception:
+        pass
+    return None
+
 def populate_devices(os_system):
     """
     Busca y procesa los dispositivos físicos del sistema.
+    En Windows filtra solo WASAPI (igual que OBS) para evitar duplicados de MME/DirectSound.
     Devuelve un tuple: (inputs, outputs).
     """
     inputs = []
     outputs = []
     try:
         devices = sd.query_devices()
+
+        # En Windows: obtener solo dispositivos WASAPI para evitar duplicados
+        wasapi_idx = _get_wasapi_hostapi_index() if os_system == "Windows" else None
+
         for i, d in enumerate(devices):
+            # Filtrar por host API WASAPI en Windows
+            if wasapi_idx is not None and d.get('hostapi') != wasapi_idx:
+                continue
+
             name_lower = d['name'].lower()
-            
-            # Requisito especial Windows: Nombrar salida como Cable Output
-            # if os_system == "Windows" and any(kw in name_lower for kw in WINDOWS_CABLE_KEYWORDS):
-            #     d['name'] = "CABLE Output (VB-Audio Virtual Cable)"
-                
+
             if any(kw in name_lower for kw in EXCLUDE_DEVICE_KEYWORDS):
                 continue
-                
+
             d_copy = d.copy()
             d_copy['original_index'] = i
-            
+
             if d['max_input_channels'] > 0:
                 inputs.append(d_copy)
             if d['max_output_channels'] > 0:
                 outputs.append(d_copy)
-                
+
     except Exception as e:
         print(f"No se pudieron consultar dispositivos: {e}")
-        
+
     return inputs, outputs
 
 def get_sink_device_index(outputs, target_name):

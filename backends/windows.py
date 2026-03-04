@@ -19,18 +19,24 @@ class WindowsAudio(PlatformAudio):
 
     def init_virtual_cable(self):
         try:
+            from utils.devices import _get_wasapi_hostapi_index
             devices = sd.query_devices()
+            wasapi_idx = _get_wasapi_hostapi_index()
 
-            # Log diagnóstico: mostrar todos los dispositivos para debugging
-            print("[WindowsAudio] === Dispositivos de audio disponibles ===")
+            # Log diagnóstico: mostrar todos los dispositivos WASAPI para debugging
+            print("[WindowsAudio] === Dispositivos WASAPI disponibles ===")
             for i, d in enumerate(devices):
+                if wasapi_idx is not None and d.get('hostapi') != wasapi_idx:
+                    continue
                 in_ch  = d['max_input_channels']
                 out_ch = d['max_output_channels']
                 print(f"  [{i:2}] IN={in_ch} OUT={out_ch}  {d['name']}")
             print("[WindowsAudio] ==========================================")
 
-            # Primera pasada: priorizar "CABLE Input" (donde SoundDevice envía audio al cable)
+            # Primera pasada: priorizar "CABLE Input" en WASAPI
             for i, d in enumerate(devices):
+                if wasapi_idx is not None and d.get('hostapi') != wasapi_idx:
+                    continue
                 if d['max_output_channels'] > 0:
                     name_lower = d['name'].lower()
                     if any(kw in name_lower for kw in WINDOWS_CABLE_KEYWORDS) and 'input' in name_lower:
@@ -39,8 +45,10 @@ class WindowsAudio(PlatformAudio):
                         print(f"[WindowsAudio] CABLE Input detectado (Index {i}): {d['name']}")
                         return
 
-            # Segunda pasada: cualquier dispositivo con keyword de cable (fallback)
+            # Segunda pasada: cualquier cable en WASAPI (fallback)
             for i, d in enumerate(devices):
+                if wasapi_idx is not None and d.get('hostapi') != wasapi_idx:
+                    continue
                 if d['max_output_channels'] > 0:
                     name_lower = d['name'].lower()
                     if any(kw in name_lower for kw in WINDOWS_CABLE_KEYWORDS):
