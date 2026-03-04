@@ -19,11 +19,11 @@ def clean_device_name(name):
         name = name[:37] + "..."
     return name or "Dispositivo Desconocido"
 
-def _get_wasapi_hostapi_index():
-    """Retorna el índice de host API WASAPI, o None si no se encuentra."""
+def _get_directsound_hostapi_index():
+    """Retorna el índice de host API DirectSound, o None si no se encuentra."""
     try:
         for i, api in enumerate(sd.query_hostapis()):
-            if 'wasapi' in api['name'].lower():
+            if 'directsound' in api['name'].lower():
                 return i
     except Exception:
         pass
@@ -32,7 +32,7 @@ def _get_wasapi_hostapi_index():
 def populate_devices(os_system):
     """
     Busca y procesa los dispositivos físicos del sistema.
-    En Windows filtra solo WASAPI para evitar duplicados.
+    En Windows filtra solo DirectSound para evitar duplicados y crashes.
     Devuelve un tuple: (inputs, outputs).
     """
     inputs = []
@@ -40,12 +40,12 @@ def populate_devices(os_system):
     try:
         devices = sd.query_devices()
 
-        # En Windows: obtener solo dispositivos WASAPI
-        wasapi_idx = _get_wasapi_hostapi_index() if os_system == "Windows" else None
+        # En Windows: obtener solo dispositivos DirectSound
+        ds_idx = _get_directsound_hostapi_index() if os_system == "Windows" else None
 
         for i, d in enumerate(devices):
-            # Filtrar por host API WASAPI en Windows
-            if wasapi_idx is not None and d.get('hostapi') != wasapi_idx:
+            # Filtrar por host API DirectSound en Windows
+            if ds_idx is not None and d.get('hostapi') != ds_idx:
                 continue
 
             name_lower = d['name'].lower()

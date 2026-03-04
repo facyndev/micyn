@@ -81,8 +81,7 @@ class LinuxAudio(PlatformAudio):
         out = self._run([
             "pactl", "load-module", "module-loopback",
             f"source={LINUX_SINK_NAME}.monitor",
-            f"sink={LINUX_OUTPUT_SINK}",
-            "latency_msec=1"
+            f"sink={LINUX_OUTPUT_SINK}"
         ])
         self.linux_module_loopback_id = out
 
@@ -94,11 +93,6 @@ class LinuxAudio(PlatformAudio):
             f"source_properties=device.description='{LINUX_DISPLAY_NAME}'"
         ])
         self.linux_module_source_id = out
-
-        # Restaurar el sink físico por defecto (sounddevice puede haberlo cambiado)
-        physical = self._get_default_physical_sink()
-        if physical:
-            os.system(f"pactl set-default-sink {physical}")
 
         print(f"[LinuxAudio] Cables virtuales OK. Selecciona '{LINUX_DISPLAY_NAME}' como mic en OBS.")
 
