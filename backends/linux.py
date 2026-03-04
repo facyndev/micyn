@@ -160,15 +160,9 @@ class LinuxAudio(PlatformAudio):
     #  Utilidad: mover sink-inputs del proceso actual
     # ────────────────────────────────────────────────
 
-    def _move_my_sink_inputs(self, target_sink, ignore_ids=None):
-        """
-        Encuentra los sink-inputs de este proceso (por PID) y los mueve a target_sink.
-        Devuelve la lista de IDs que se movieron con éxito.
-        """
-        if ignore_ids is None:
-            ignore_ids = []
-
-        moved = []
+    def get_my_sink_inputs(self):
+        """Devuelve todos los IDs de los sink-inputs del proceso actual (compatible con versión PyInstaller y código fuente)."""
+        my_ids = []
         env = {**os.environ, "LC_ALL": "C"}
 
         try:
@@ -182,35 +176,52 @@ class LinuxAudio(PlatformAudio):
 
             blocks = re.split(r'\n(?=Sink Input #)', out)
             for block in blocks:
+                block_lower = block.lower()
                 is_mine = (
-                    f'application.process.id = "{pid}"' in block
-                    or f'application.name = "{current_bin}"' in block
-                    or ("python" in block.lower() and ("44100" in block or "mono" in block))
+                    pid in block
+                    or current_bin in block_lower
+                    or "micyn" in block_lower
+                    or ("python" in block_lower and ("44100" in block_lower or "48000" in block_lower or "mono" in block_lower))
                 )
                 if not is_mine:
                     continue
 
                 m = re.search(r'Sink Input #(\d+)', block)
-                if not m:
-                    continue
-                sid = m.group(1)
-                if sid in ignore_ids:
-                    continue
-
-                result = subprocess.run(
-                    ["pactl", "move-sink-input", sid, target_sink],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env
-                )
-                if result.returncode == 0:
-                    print(f"  ✓ sink-input {sid} → {target_sink}")
-                    moved.append(sid)
-                else:
-                    print(f"  ✗ Error moviendo {sid}: {result.stderr.strip()}")
-
-            if not moved:
-                print(f"[LinuxAudio] AVISO: no se encontraron sink-inputs del proceso (PID {pid}).")
+                if m:
+                    my_ids.append(m.group(1))
 
         except Exception as e:
-            print(f"[LinuxAudio] Error en _move_my_sink_inputs: {e}")
+            print(f"[LinuxAudio] Error en get_my_sink_inputs: {e}")
+
+        return my_ids
+
+    def _move_my_sink_inputs(self, target_sink, ignore_ids=None):
+        """
+        Encuentra los sink-inputs de este proceso y los mueve a target_sink.
+        Devuelve la lista de IDs que se movieron con éxito.
+        """
+        if ignore_ids is None:
+            ignore_ids = []
+
+        moved = []
+        env = {**os.environ, "LC_ALL": "C"}
+        my_ids = self.get_my_sink_inputs()
+
+        for sid in my_ids:
+            if sid in ignore_ids:
+                continue
+
+            result = subprocess.run(
+                ["pactl", "move-sink-input", sid, target_sink],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env
+            )
+            if result.returncode == 0:
+                print(f"  ✓ sink-input {sid} → {target_sink}")
+                moved.append(sid)
+            else:
+                print(f"  ✗ Error moviendo {sid}: {result.stderr.strip()}")
+
+        if not moved:
+            print(f"[LinuxAudio] AVISO: no se movieron sink-inputs.")
 
         return moved

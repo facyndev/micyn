@@ -40,10 +40,10 @@ def start_audio_loop(
     streams = []
     
     try:
-        # 1. Módulo Monitor Directo (0ms latency, personal headphones)
+        # 1. Módulo Monitor Directo (Sin retraso)
         if listen_live and monitor_device_id is not None:
             stream_mon = sd.OutputStream(
-                samplerate=SAMPLERATE, device=monitor_device_id, channels=CHANNELS,
+                device=monitor_device_id,
                 callback=engine._monitor_callback_out, blocksize=CHUNK_SIZE
             )
             streams.append(stream_mon)
@@ -52,7 +52,7 @@ def start_audio_loop(
         # 2. Módulo Monitor Retrasado
         if listen_delay and listen_delay_device_id is not None:
             stream_mon_d = sd.OutputStream(
-                samplerate=SAMPLERATE, device=listen_delay_device_id, channels=CHANNELS,
+                device=listen_delay_device_id,
                 callback=engine._monitor_delay_callback_out, blocksize=CHUNK_SIZE
             )
             streams.append(stream_mon_d)
@@ -63,22 +63,11 @@ def start_audio_loop(
         monitor_stream_ids = []
         if app_context.os_system == 'Linux':
             time.sleep(0.5) # dar tiempo a PipeWire para registrar los monitores
-            import subprocess, re as _re
-            try:
-                env = dict(os.environ, LC_ALL="C")
-                out_pa = subprocess.check_output(["pactl", "list", "sink-inputs"], env=env).decode()
-                pid = str(os.getpid())
-                for block in _re.split(r'\n(?=Sink Input #)', out_pa):
-                    if pid in block or "python" in block.lower():
-                        m = _re.search(r'Sink Input #(\d+)', block)
-                        if m:
-                            monitor_stream_ids.append(m.group(1))
-            except Exception:
-                pass
+            monitor_stream_ids = app_context.platform_audio.get_my_sink_inputs()
 
         # 3. Stream de Salida Principal (Micyn)
         stream_out = sd.OutputStream(
-            samplerate=SAMPLERATE, device=out_device_id, channels=CHANNELS,
+            device=out_device_id,
             callback=engine._audio_callback_out, blocksize=CHUNK_SIZE
         )
         streams.append(stream_out)
@@ -95,7 +84,7 @@ def start_audio_loop(
 
         # 4. Stream de Entrada (Micrófono)
         stream_in = sd.InputStream(
-            samplerate=SAMPLERATE, device=in_device_id, channels=CHANNELS,
+            device=in_device_id,
             callback=engine._audio_callback_in, blocksize=CHUNK_SIZE
         )
         streams.append(stream_in)

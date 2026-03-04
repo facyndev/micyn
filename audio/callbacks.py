@@ -45,7 +45,7 @@ class AudioEngine:
         if status:
             pass
 
-        data = self.ring_buffer.read(frames)
+        data = self.ring_buffer.read(frames, out_channels=outdata.shape[1])
         
         # Para vúmetros de salida
         rms = np.sqrt(np.mean(data**2))
@@ -60,6 +60,16 @@ class AudioEngine:
             return
         try:
             data = self.monitor_queue.get_nowait()
+            
+            out_ch = outdata.shape[1]
+            if data.shape[1] != out_ch:
+                if data.shape[1] == 1 and out_ch == 2:
+                    data = np.repeat(data, 2, axis=1)
+                elif data.shape[1] == 2 and out_ch == 1:
+                    data = np.mean(data, axis=1, keepdims=True)
+                else:
+                    data = data[:, :out_ch]
+
             # Ajustar tamaño si no coincide perfectamente (poco probable pero seguro)
             if len(data) < frames:
                 outdata[:len(data)] = data
@@ -87,5 +97,5 @@ class AudioEngine:
             except Exception:
                 pass
 
-        data = self.ring_buffer.read_monitor(frames)
+        data = self.ring_buffer.read_monitor(frames, out_channels=outdata.shape[1])
         outdata[:] = data
