@@ -58,18 +58,12 @@ def start_audio_loop(
             streams.append(stream_mon_d)
             stream_mon_d.start()
 
-        # 3. Stream de Salida Principal (Micyn)
-        stream_out = sd.OutputStream(
-            samplerate=SAMPLERATE, device=out_device_id, channels=CHANNELS,
-            callback=engine._audio_callback_out, blocksize=CHUNK_SIZE
-        )
-        streams.append(stream_out)
-        stream_out.start()
-
-        # ---- Ruteos Específicos del OS POST-arranque de Salida ----
-        # Capturar IDs de sink-inputs de monitor (ya abiertos) para excluirlos del ruteo al sink virtual
+        # ---- Ruteos Específicos del OS POST-arranque de Monitores ----
+        # Capturar IDs de sink-inputs de monitor (ya abiertos) ANTES de abrir el stream principal
         monitor_stream_ids = []
         if app_context.os_system == 'Linux':
+            import time
+            time.sleep(0.5) # dar tiempo a PipeWire para registrar los monitores
             import subprocess, re as _re
             try:
                 env = dict(os.environ, LC_ALL="C")
@@ -83,13 +77,20 @@ def start_audio_loop(
             except Exception:
                 pass
 
+        # 3. Stream de Salida Principal (Micyn)
+        stream_out = sd.OutputStream(
+            samplerate=SAMPLERATE, device=out_device_id, channels=CHANNELS,
+            callback=engine._audio_callback_out, blocksize=CHUNK_SIZE
+        )
+        streams.append(stream_out)
+        stream_out.start()
+
+        # Aislar y rutear
         main_stream_ids = app_context.platform_audio.post_stream_setup(
             stream_out, monitor_stream_ids
         )
 
         # En Linux: los streams de monitor deben ir al sink FÍSICO, nunca al virtual
-        # (los IDs de monitor son los que teníamos antes de abrir stream_out,
-        #  post_stream_setup ya los excluyó del virtual, ahora los mandamos al físico)
         if app_context.os_system == 'Linux' and monitor_stream_ids:
             app_context.platform_audio.route_monitors(monitor_stream_ids)
 
