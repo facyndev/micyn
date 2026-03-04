@@ -148,6 +148,41 @@ class AudioDelayApp(ctk.CTk):
         if isinstance(self.platform_audio, WindowsAudio):
             self.platform_audio._recheck_cable_windows(self.destroy)
 
+    def _get_monitor_device_windows(self, sd):
+        """
+        Selecciona el dispositivo de salida para monitor en Windows.
+        Evita usar el VB-Cable como monitor (que enviaría el audio a OBS en vez de los auriculares).
+        Retorna el índice del primer dispositivo de salida que no sea cable virtual.
+        """
+        from constants import WINDOWS_CABLE_KEYWORDS
+        try:
+            devices = sd.query_devices()
+            default_out = sd.default.device[1]
+
+            # Verificar si el default es válido y no es el cable
+            if default_out is not None and default_out >= 0:
+                d = devices[default_out]
+                name_lower = d['name'].lower()
+                is_cable = any(kw in name_lower for kw in WINDOWS_CABLE_KEYWORDS)
+                if not is_cable and d['max_output_channels'] > 0:
+                    print(f"[Monitor] Usando dispositivo predeterminado: {d['name']} (idx {default_out})")
+                    return default_out
+
+            # Fallback: primer output que no sea cable
+            for i, d in enumerate(devices):
+                if d['max_output_channels'] > 0:
+                    name_lower = d['name'].lower()
+                    if not any(kw in name_lower for kw in WINDOWS_CABLE_KEYWORDS):
+                        print(f"[Monitor] Usando primer output no-cable: {d['name']} (idx {i})")
+                        return i
+
+            # Último recurso: default aunque sea el cable
+            print(f"[Monitor] Fallback final: usando sd.default.device[1] = {default_out}")
+            return default_out
+        except Exception as e:
+            print(f"[Monitor] Error seleccionando dispositivo: {e}")
+            return None
+
     def _on_time_change(self, choice):
         if not hasattr(self, 'custom_time_entry'): return
         if choice == "Personalizado (Segundos)":
@@ -208,11 +243,16 @@ class AudioDelayApp(ctk.CTk):
 
         monitor_device_id = None
         listen_delay_device_id = None
-        
-        import sounddevice as sd
+
         if listen_live or listen_delay:
-            monitor_device_id = sd.default.device[1]
-            listen_delay_device_id = sd.default.device[1]
+            import sounddevice as sd
+            if self.os_system == "Windows":
+                # En Windows buscar el primer dispositivo de salida que NO sea el cable virtual
+                # (evita mandar el monitor al VB-Cable en vez de a los auriculares)
+                monitor_device_id = self._get_monitor_device_windows(sd)
+            else:
+                monitor_device_id = sd.default.device[1]
+            listen_delay_device_id = monitor_device_id
 
         self.audio_thread = threading.Thread(
             target=start_audio_loop,

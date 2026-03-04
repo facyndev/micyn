@@ -21,6 +21,14 @@ class WindowsAudio(PlatformAudio):
         try:
             devices = sd.query_devices()
 
+            # Log diagnóstico: mostrar todos los dispositivos para debugging
+            print("[WindowsAudio] === Dispositivos de audio disponibles ===")
+            for i, d in enumerate(devices):
+                in_ch  = d['max_input_channels']
+                out_ch = d['max_output_channels']
+                print(f"  [{i:2}] IN={in_ch} OUT={out_ch}  {d['name']}")
+            print("[WindowsAudio] ==========================================")
+
             # Primera pasada: priorizar "CABLE Input" (donde SoundDevice envía audio al cable)
             for i, d in enumerate(devices):
                 if d['max_output_channels'] > 0:
@@ -46,7 +54,7 @@ class WindowsAudio(PlatformAudio):
             print(f"[WindowsAudio] Error detectando cable: {e}")
 
     def cleanup_virtual_cable(self):
-        # En Windows no manejamos drivers viruales de forma nativa.
+        # En Windows no manejamos drivers virtuales de forma nativa.
         pass
 
     def get_output_device(self, outputs: list) -> int:
